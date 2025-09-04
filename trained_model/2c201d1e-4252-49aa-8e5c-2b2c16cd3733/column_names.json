@@ -1,0 +1,11 @@
+{
+  "feature_names": [
+    "SiO2",
+    "CeO2",
+    "Lignin",
+    "2-VN"
+  ],
+  "target_names": [
+    "H-AF"
+  ]
+}

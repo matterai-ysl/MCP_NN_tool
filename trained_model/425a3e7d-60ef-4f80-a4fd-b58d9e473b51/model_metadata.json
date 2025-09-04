@@ -1,0 +1,26 @@
+{
+  "model_id": "425a3e7d-60ef-4f80-a4fd-b58d9e473b51",
+  "created_at": "2025-09-04T18:53:47.155506",
+  "task_type": "regression",
+  "feature_number": 4,
+  "target_number": 1,
+  "feature_names": [
+    "SiO2",
+    "CeO2",
+    "Lignin",
+    "2-VN"
+  ],
+  "target_names": [
+    "H-AF"
+  ],
+  "best_params": {
+    "lr": 8.297399851085324e-05,
+    "batch_size": 64,
+    "drop_out": 0.045393797716566,
+    "unit": 128,
+    "layber_number": 1
+  },
+  "best_mae": 0.17272427380084993,
+  "cv_folds": 5,
+  "training_epochs": 500
+}
