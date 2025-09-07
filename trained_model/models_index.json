@@ -64,5 +64,27 @@
     ],
     "best_mae": 0.16965184211730958,
     "folder_path": "./trained_model/e15cca8a-c500-446a-aaaf-dd8f4eaf6227"
+  },
+  "0f4ea069-365d-4d54-876d-221d740874a2": {
+    "model_id": "0f4ea069-365d-4d54-876d-221d740874a2",
+    "created_at": "2025-09-06T22:40:58.862532",
+    "feature_number": 4,
+    "target_number": 1,
+    "target_names": [
+      "H-AF"
+    ],
+    "best_mae": 0.15602957606315612,
+    "folder_path": "./trained_model/0f4ea069-365d-4d54-876d-221d740874a2"
+  },
+  "abd146b2-e89f-4c4a-be39-c17767fcc5cc": {
+    "model_id": "abd146b2-e89f-4c4a-be39-c17767fcc5cc",
+    "created_at": "2025-09-07T00:23:31.708760",
+    "feature_number": 4,
+    "target_number": 1,
+    "target_names": [
+      "H-AF"
+    ],
+    "best_mae": 0.16205792129039764,
+    "folder_path": "./trained_model/abd146b2-e89f-4c4a-be39-c17767fcc5cc"
   }
 }

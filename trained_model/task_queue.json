@@ -1,0 +1,149 @@
+{
+  "512a6375-f2d4-4063-8656-7ff15a19bbff": {
+    "task_id": "512a6375-f2d4-4063-8656-7ff15a19bbff",
+    "task_type": "regression_training",
+    "status": "completed",
+    "created_at": "2025-09-06T13:51:23.435470+00:00",
+    "started_at": "2025-09-06T13:51:23.435970+00:00",
+    "completed_at": "2025-09-06T13:51:28.448874+00:00",
+    "progress": 100.0,
+    "progress_message": "Task completed successfully",
+    "result": {
+      "status": "success",
+      "model_id": "test-model-123",
+      "accuracy": 0.95,
+      "training_file": "test_data.csv"
+    },
+    "error_message": null,
+    "parameters": {
+      "test": true
+    },
+    "estimated_duration": 5.0,
+    "actual_duration": 5.01279091835022
+  },
+  "01c78171-5e91-4294-9ddd-a1df2ea69e40": {
+    "task_id": "01c78171-5e91-4294-9ddd-a1df2ea69e40",
+    "task_type": "regression_training",
+    "status": "completed",
+    "created_at": "2025-09-06T14:39:48.712854+00:00",
+    "started_at": "2025-09-06T14:39:48.716197+00:00",
+    "completed_at": "2025-09-06T14:40:58.866200+00:00",
+    "progress": 100.0,
+    "progress_message": "Task completed successfully",
+    "result": {
+      "status": "success",
+      "model_id": "0f4ea069-365d-4d54-876d-221d740874a2",
+      "model_folder": "./trained_model/0f4ea069-365d-4d54-876d-221d740874a2",
+      "best_parameters": {
+        "lr": 0.0002872125724014264,
+        "batch_size": 48,
+        "drop_out": 0.09017326769051894,
+        "unit": 48,
+        "layber_number": 1
+      },
+      "best_mae": 0.15602957606315612,
+      "feature_names": [
+        "SiO2",
+        "CeO2",
+        "Lignin",
+        "2-VN"
+      ],
+      "target_names": [
+        "H-AF"
+      ],
+      "training_summary": {
+        "n_trials": 50,
+        "cv_folds": 5,
+        "num_epochs": 500,
+        "algorithm": "TPE",
+        "loss_function": "MAE",
+        "target_columns": 1,
+        "data_shape": [
+          53,
+          5
+        ],
+        "optimization_time": 68.17943501472473,
+        "training_time": 1.939385175704956,
+        "total_time": 70.1486349105835
+      },
+      "experiment_report": "http://localhost:8090/download/file/0f4ea069-365d-4d54-876d-221d740874a2/academic_report.md",
+      "training_artifacts_download_url": "More training details, such as hyperparameter optimization, cross-validation scatter plots, and training logs, are available in the http://localhost:8090/download/file/0f4ea069-365d-4d54-876d-221d740874a2. The **experiment_report** at http://localhost:8090/download/file/0f4ea069-365d-4d54-876d-221d740874a2/academic_report.md provides comprehensive records and analysis for reproducibility and academic reference."
+    },
+    "error_message": null,
+    "parameters": {
+      "training_file": "./H-AF.xls",
+      "target_columns": 1,
+      "n_trials": 50,
+      "cv_folds": 5,
+      "num_epochs": 500,
+      "algorithm": "TPE",
+      "loss_function": "MAE",
+      "task_type": "regression"
+    },
+    "estimated_duration": 1310.0,
+    "actual_duration": 70.14940690994263
+  },
+  "899b594d-6797-49d8-b520-2432b6a3a418": {
+    "task_id": "899b594d-6797-49d8-b520-2432b6a3a418",
+    "task_type": "regression_training",
+    "status": "completed",
+    "created_at": "2025-09-06T16:22:37.566460+00:00",
+    "started_at": "2025-09-06T16:22:37.570590+00:00",
+    "completed_at": "2025-09-06T16:23:31.722294+00:00",
+    "progress": 100.0,
+    "progress_message": "Task completed successfully",
+    "result": {
+      "status": "success",
+      "model_id": "abd146b2-e89f-4c4a-be39-c17767fcc5cc",
+      "model_folder": "./trained_model/abd146b2-e89f-4c4a-be39-c17767fcc5cc",
+      "best_parameters": {
+        "lr": 0.0012089300956366217,
+        "batch_size": 128,
+        "drop_out": 0.22859491540745652,
+        "unit": 112,
+        "layber_number": 1
+      },
+      "best_mae": 0.16205792129039764,
+      "feature_names": [
+        "SiO2",
+        "CeO2",
+        "Lignin",
+        "2-VN"
+      ],
+      "target_names": [
+        "H-AF"
+      ],
+      "training_summary": {
+        "n_trials": 50,
+        "cv_folds": 5,
+        "num_epochs": 500,
+        "algorithm": "TPE",
+        "loss_function": "MAE",
+        "target_columns": 1,
+        "data_shape": [
+          53,
+          5
+        ],
+        "optimization_time": 52.159916162490845,
+        "training_time": 1.9519248008728027,
+        "total_time": 54.14042901992798
+      },
+      "experiment_report": "http://localhost:8090/download/file/abd146b2-e89f-4c4a-be39-c17767fcc5cc/academic_report.md",
+      "training_artifacts_download_url": "More training details, such as hyperparameter optimization, cross-validation scatter plots, and training logs, are available in the http://localhost:8090/download/file/abd146b2-e89f-4c4a-be39-c17767fcc5cc. The **experiment_report** at http://localhost:8090/download/file/abd146b2-e89f-4c4a-be39-c17767fcc5cc/academic_report.md provides comprehensive records and analysis for reproducibility and academic reference.",
+      "training_report_html_path": "http://localhost:8090/static/abd146b2-e89f-4c4a-be39-c17767fcc5cc/nn_training_report_abd146b2-e89f-4c4a-be39-c17767fcc5cc_20250907_002331.html"
+    },
+    "error_message": null,
+    "parameters": {
+      "training_file": "./H-AF.xls",
+      "target_columns": 1,
+      "n_trials": 50,
+      "cv_folds": 5,
+      "num_epochs": 500,
+      "algorithm": "TPE",
+      "loss_function": "MAE",
+      "task_type": "regression"
+    },
+    "estimated_duration": 1310.0,
+    "actual_duration": 54.15075707435608
+  }
+}

@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from .config import BASE_URL,get_download_url,get_static_url
 import asyncio
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Callable
 import logging
 import uuid
 import numpy as np
@@ -37,6 +37,13 @@ from mcp_nn_tool.training import (optimize_hyperparameters,
                                   generate_academic_report
                                   )
 from mcp_nn_tool.model_manager import ModelManager
+from mcp_nn_tool.task_queue import (
+    get_task_queue, 
+    initialize_task_queue,
+    TaskType,
+    TaskStatus
+)
+from mcp_nn_tool.nn_html_report_generator import NeuralNetworkHTMLReportGenerator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -52,8 +59,7 @@ mcp = FastMCP("Neural-Network-MCP-Tool",
 model_manager = ModelManager("./trained_model")
 
 
-@mcp.tool()
-async def train_neural_network_regression(
+async def _train_neural_network_regression_impl(
     training_file: str,
     target_columns: int = 1,
     n_trials: int = 100,
@@ -61,6 +67,7 @@ async def train_neural_network_regression(
     num_epochs: int = 500,
     algorithm: str = "TPE",
     loss_function: str = "MAE",
+    progress_callback: Optional[Callable] = None
 ) -> Dict[str, Any]:
     """Train a neural network model with hyperparameter optimization.
     
@@ -100,9 +107,16 @@ async def train_neural_network_regression(
         
         # Progress callback for monitoring
         progress_updates = []
-        async def progress_callback(info):
+        async def internal_progress_callback(info):
             progress_updates.append(info)
             logger.info(f"Training progress: {info}")
+            # Call external progress callback if provided
+            if progress_callback:
+                # Extract progress percentage from info
+                if isinstance(info, dict) and 'progress' in info:
+                    await progress_callback(info['progress'], info.get('message', ''))
+                else:
+                    await progress_callback(0, str(info))
         
         # Create temporary model folder for saving training artifacts
         temp_model_folder = f"trained_model/{model_id}"
@@ -118,7 +132,7 @@ async def train_neural_network_regression(
             cv_folds=cv_folds,
             num_epochs=num_epochs,
             algorithm=algorithm,
-            progress_callback=progress_callback,
+            progress_callback=internal_progress_callback,
             save_dir=temp_model_folder,
             loss_function=loss_function
         )
@@ -133,7 +147,7 @@ async def train_neural_network_regression(
             target_number,
             cv_folds=cv_folds,
             num_epochs=num_epochs,
-            progress_callback=progress_callback,
+            progress_callback=internal_progress_callback,
             save_dir=temp_model_folder,
             full_scaler=full_scaler,
             target_names=target_names,
@@ -219,6 +233,21 @@ async def train_neural_network_regression(
             "training_artifacts_download_url": f"More training details, such as hyperparameter optimization, cross-validation scatter plots, and training logs, are available in the {model_folder_url_path}. The **experiment_report** at {report_url_path} provides comprehensive records and analysis for reproducibility and academic reference."
         }
         
+        # Generate HTML report after result is created
+        html_report_path = None
+        try:
+            html_generator = NeuralNetworkHTMLReportGenerator(output_dir=str(model_folder))
+            html_report_path = html_generator.generate_training_report(
+                model_directory=model_folder, # type: ignore
+                training_results=result,
+                include_visualizations=True
+            )
+            html_report_url = get_static_url(html_report_path)
+            result["training_report_html_path"] = html_report_url
+            logger.info(f"HTML training report generated: {html_report_path}")
+        except Exception as e:
+            logger.warning(f"Failed to generate HTML training report: {str(e)}")
+        
         logger.info(f"Training completed successfully. Model ID: {saved_model_id}")
         logger.info(f"Model saved to: {model_folder}")
         logger.info(f"Academic report: {report_path}")
@@ -227,6 +256,85 @@ async def train_neural_network_regression(
     except Exception as e:
         logger.error(f"Error in training: {str(e)}")
         raise
+
+
+@mcp.tool()
+async def train_neural_network_regression(
+    training_file: str,
+    target_columns: int = 1,
+    n_trials: int = 100,
+    cv_folds: int = 5,
+    num_epochs: int = 500,
+    algorithm: str = "TPE",
+    loss_function: str = "MAE",
+) -> Dict[str, Any]:
+    """Submit a neural network regression training task to the queue.
+    
+    This function submits the training task to an asynchronous queue and returns 
+    immediately with a task ID. Use get_training_results() to check progress and get results.
+    
+    Args:
+        training_file: Path to training data file (CSV/Excel)
+        target_columns: Number of target columns at the end of the dataset (default: 1)
+        n_trials: Number of hyperparameter optimization trials (default: 100)
+        cv_folds: Number of cross-validation folds (default: 5)
+        num_epochs: Number of training epochs per fold (default: 500)
+        algorithm: Optimization algorithm - "TPE" or "GP" (default: "TPE")
+        loss_function: Loss function to use - "MAE" or "MSE" (default: "MAE")
+        
+    Returns:
+        Dictionary containing task ID and submission status
+    """
+    try:
+        # Estimate training duration (rough estimation based on parameters)
+        estimated_duration = (n_trials * cv_folds * num_epochs * 0.01) + 60  # seconds
+        
+        # Task parameters for tracking
+        task_parameters = {
+            "training_file": training_file,
+            "target_columns": target_columns,
+            "n_trials": n_trials,
+            "cv_folds": cv_folds,
+            "num_epochs": num_epochs,
+            "algorithm": algorithm,
+            "loss_function": loss_function,
+            "task_type": "regression"
+        }
+        
+        # Submit task to queue
+        task_queue = get_task_queue()
+        task_id = await task_queue.submit_task(
+            task_type=TaskType.REGRESSION_TRAINING,
+            task_function=_train_neural_network_regression_impl,
+            task_args=(),
+            task_kwargs={
+                "training_file": training_file,
+                "target_columns": target_columns,
+                "n_trials": n_trials,
+                "cv_folds": cv_folds,
+                "num_epochs": num_epochs,
+                "algorithm": algorithm,
+                "loss_function": loss_function
+            },
+            task_parameters=task_parameters,
+            estimated_duration=estimated_duration
+        )
+        
+        return {
+            "status": "submitted",
+            "task_id": task_id,
+            "message": "Training task submitted to queue",
+            "estimated_duration": estimated_duration,
+            "parameters": task_parameters,
+            "next_steps": "Use get_training_results(task_id) to check progress and get results when complete"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error submitting training task: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to submit training task: {str(e)}"
+        }
 
 
 @mcp.tool()
@@ -273,6 +381,21 @@ async def predict_from_file_neural_network(
                 "prediction_details": f"Prediction task completed.More prediction details, such as the prediction results, can be found in the {basic_csv_path}. The **experiment_report** at {experiment_report_path} provides comprehensive records and analysis for reproducibility and academic reference."
             }
             
+            # Generate HTML prediction report for classification
+            if generate_experiment_report:
+                try:
+                    html_generator = NeuralNetworkHTMLReportGenerator()
+                    html_report_path = html_generator.generate_prediction_report(
+                        prediction_results=response,
+                        model_info=model_components['metadata'],
+                        include_visualizations=True
+                    )
+                    html_report_url = get_download_url(html_report_path)
+                    response['html_prediction_report'] = html_report_url
+                    logger.info(f"HTML prediction report generated: {html_report_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to generate HTML prediction report: {str(e)}")
+            
         else:
             # Use regression prediction (default)
             result_df, raw_predictions, experiment_report_path, basic_csv_path = await prediction.predict_from_file(
@@ -300,6 +423,21 @@ async def predict_from_file_neural_network(
                 predictions_dir_realve_path = get_download_url(predictions_dir) # type: ignore
                 response['output_directory'] = predictions_dir_realve_path
                 response['prediction_details'] = f"Prediction task completed.More prediction details, such as the prediction results, can be found in the {predictions_dir}. The **experiment_report** at {experiment_report_path} provides comprehensive records and analysis for reproducibility and academic reference."
+                
+                # Generate HTML prediction report for regression
+                if generate_experiment_report:
+                    try:
+                        html_generator = NeuralNetworkHTMLReportGenerator()
+                        html_report_path = html_generator.generate_prediction_report(
+                            prediction_results=response,
+                            model_info=model_components['metadata'],
+                            include_visualizations=True
+                        )
+                        html_report_url = get_download_url(html_report_path)
+                        response['html_prediction_report'] = html_report_url
+                        logger.info(f"HTML regression prediction report generated: {html_report_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to generate HTML regression prediction report: {str(e)}")
         
         # Add experiment report path if available
         if experiment_report_path:
@@ -360,6 +498,21 @@ async def predict_from_values_neural_network(
                 'basic_csv_path': basic_csv_path
             }
             
+            # Generate HTML prediction report for classification values
+            if generate_experiment_report:
+                try:
+                    html_generator = NeuralNetworkHTMLReportGenerator()
+                    html_report_path = html_generator.generate_prediction_report(
+                        prediction_results=response,
+                        model_info=model_components['metadata'],
+                        include_visualizations=True
+                    )
+                    html_report_url = get_download_url(html_report_path)
+                    response['html_prediction_report'] = html_report_url
+                    logger.info(f"HTML classification values prediction report generated: {html_report_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to generate HTML classification values prediction report: {str(e)}")
+            
         else:
             # Use regression prediction (default)
             results, experiment_report_path, basic_csv_path = await prediction.predict_from_values(
@@ -379,6 +532,21 @@ async def predict_from_values_neural_network(
             
             if 'experiment_details' in results:
                 response['output_directory'] = results['experiment_details']['output_directory']
+            
+            # Generate HTML prediction report for regression values
+            if generate_experiment_report:
+                try:
+                    html_generator = NeuralNetworkHTMLReportGenerator()
+                    html_report_path = html_generator.generate_prediction_report(
+                        prediction_results=response,
+                        model_info=model_components['metadata'],
+                        include_visualizations=True
+                    )
+                    html_report_url = get_download_url(html_report_path)
+                    response['html_prediction_report'] = html_report_url
+                    logger.info(f"HTML regression values prediction report generated: {html_report_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to generate HTML regression values prediction report: {str(e)}")
         
         # Add experiment report path if available
         if experiment_report_path:
@@ -495,13 +663,13 @@ async def delete_neural_network_model(model_id: str) -> Dict[str, Any]:
 
 # ================== CLASSIFICATION TOOLS ==================
 
-@mcp.tool()
-async def train_classification_model_neural_network(
+async def _train_classification_model_neural_network_impl(
     training_file: str,
     n_trials: int = 50,
     cv_folds: int = 5,
     num_epochs: int = 300,
     algorithm: str = "TPE",
+    progress_callback: Optional[Callable] = None
 ) -> Dict[str, Any]:
     """Train a classification neural network model with hyperparameter optimization.
     
@@ -544,9 +712,16 @@ async def train_classification_model_neural_network(
         
         # Progress callback for monitoring
         progress_updates = []
-        async def progress_callback(info):
+        async def internal_progress_callback(info):
             progress_updates.append(info)
             logger.info(f"Training progress: {info}")
+            # Call external progress callback if provided
+            if progress_callback:
+                # Extract progress percentage from info
+                if isinstance(info, dict) and 'progress' in info:
+                    await progress_callback(info['progress'], info.get('message', ''))
+                else:
+                    await progress_callback(0, str(info))
         
         # Create temporary model folder for saving training artifacts
         temp_model_folder = f"trained_model/{model_id}"
@@ -562,7 +737,7 @@ async def train_classification_model_neural_network(
             cv_folds=cv_folds,
             num_epochs=num_epochs,
             algorithm=algorithm,
-            progress_callback=progress_callback,
+            progress_callback=internal_progress_callback,
             save_dir=temp_model_folder
         )
         optimization_time = time.time() - optimization_start_time
@@ -576,7 +751,7 @@ async def train_classification_model_neural_network(
             num_classes,
             cv_folds=cv_folds,
             num_epochs=num_epochs,
-            progress_callback=progress_callback,
+            progress_callback=internal_progress_callback,
             save_dir=temp_model_folder,
             feature_scaler=feature_scaler,
             class_names=class_names,
@@ -678,6 +853,21 @@ async def train_classification_model_neural_network(
             }
         }
         
+        # Generate HTML report for classification
+        html_report_path = None
+        try:
+            html_generator = NeuralNetworkHTMLReportGenerator(output_dir=str(model_folder))
+            html_report_path = html_generator.generate_training_report(
+                model_directory=model_folder, # type: ignore
+                training_results=result,
+                include_visualizations=True
+            )
+            html_report_url = get_static_url(html_report_path)
+            result["training_report_html_path"] = html_report_url
+            logger.info(f"HTML classification training report generated: {html_report_path}")
+        except Exception as e:
+            logger.warning(f"Failed to generate HTML classification training report: {str(e)}")
+        
         logger.info(f"Classification training completed. Model ID: {saved_model_id}, Accuracy: {final_accuracy:.4f}")
         return result
         
@@ -685,6 +875,389 @@ async def train_classification_model_neural_network(
         logger.error(f"Classification training failed: {str(e)}")
         raise
 
+
+@mcp.tool()
+async def train_classification_model_neural_network(
+    training_file: str,
+    n_trials: int = 50,
+    cv_folds: int = 5,
+    num_epochs: int = 300,
+    algorithm: str = "TPE",
+) -> Dict[str, Any]:
+    """Submit a classification neural network training task to the queue.
+    
+    This function submits the training task to an asynchronous queue and returns 
+    immediately with a task ID. Use get_training_results() to check progress and get results.
+    
+    Automatically detects class labels and converts them to numerical format.
+    Supports both string labels ("cat", "dog") and numeric labels (0, 1, 2).
+    
+    Args:
+        training_file: Path to training data file (CSV/Excel) 
+        n_trials: Number of hyperparameter optimization trials (default: 50)
+        cv_folds: Number of cross-validation folds (default: 5)
+        num_epochs: Number of training epochs per fold (default: 300)
+        algorithm: Optimization algorithm - "TPE" or "GP" (default: "TPE")
+        
+    Returns:
+        Dictionary containing task ID and submission status
+    """
+    try:
+        # Estimate training duration (rough estimation based on parameters)
+        estimated_duration = (n_trials * cv_folds * num_epochs * 0.008) + 45  # seconds, slightly faster than regression
+        
+        # Task parameters for tracking
+        task_parameters = {
+            "training_file": training_file,
+            "n_trials": n_trials,
+            "cv_folds": cv_folds,
+            "num_epochs": num_epochs,
+            "algorithm": algorithm,
+            "task_type": "classification"
+        }
+        
+        # Submit task to queue
+        task_queue = get_task_queue()
+        task_id = await task_queue.submit_task(
+            task_type=TaskType.CLASSIFICATION_TRAINING,
+            task_function=_train_classification_model_neural_network_impl,
+            task_args=(),
+            task_kwargs={
+                "training_file": training_file,
+                "n_trials": n_trials,
+                "cv_folds": cv_folds,
+                "num_epochs": num_epochs,
+                "algorithm": algorithm
+            },
+            task_parameters=task_parameters,
+            estimated_duration=estimated_duration
+        )
+        
+        return {
+            "status": "submitted",
+            "task_id": task_id,
+            "message": "Classification training task submitted to queue",
+            "estimated_duration": estimated_duration,
+            "parameters": task_parameters,
+            "next_steps": "Use get_training_results(task_id) to check progress and get results when complete"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error submitting classification training task: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to submit classification training task: {str(e)}"
+        }
+
+
+@mcp.tool()
+async def generate_html_model_report(
+    model_id: str,
+    report_type: str = "training"
+) -> Dict[str, Any]:
+    """Generate an HTML report for an existing trained model.
+    
+    Args:
+        model_id: ID of the trained model
+        report_type: Type of report to generate ("training" or "summary")
+        
+    Returns:
+        Dictionary containing HTML report path and generation status
+    """
+    try:
+        # Load model components
+        model_components = await model_manager.load_model(model_id)
+        metadata = model_components['metadata']
+        model_folder = model_components['model_folder']
+        
+        # Create HTML generator
+        html_generator = NeuralNetworkHTMLReportGenerator(output_dir=str(model_folder))
+        
+        if report_type == "training":
+            # Generate training report from metadata
+            training_results = {
+                "status": "success",
+                "model_id": model_id,
+                "model_folder": model_folder,
+                "best_parameters": metadata.get('best_parameters', {}),
+                "feature_names": metadata.get('feature_names', []),
+                "target_names": metadata.get('target_names', []),
+                "task_type": metadata.get('task_type', 'regression'),
+                "training_summary": {
+                    "cv_folds": metadata.get('cv_folds', 5),
+                    "training_epochs": metadata.get('training_epochs', 500),
+                    "total_time": 0  # Not available for existing models
+                }
+            }
+            
+            # Add performance metrics
+            if metadata.get('task_type') == 'classification':
+                training_results["best_accuracy"] = metadata.get('best_accuracy', 0)
+            else:
+                training_results["best_mae"] = metadata.get('best_mae', 0)
+            
+            html_report_path = html_generator.generate_training_report(
+                model_directory=model_folder,
+                training_results=training_results,
+                include_visualizations=True
+            )
+        else:
+            return {
+                "status": "error",
+                "message": f"Unsupported report type: {report_type}. Supported types: 'training'"
+            }
+        
+        html_report_url = get_download_url(html_report_path)
+        
+        return {
+            "status": "success",
+            "model_id": model_id,
+            "report_type": report_type,
+            "html_report_path": html_report_url,
+            "message": f"HTML {report_type} report generated successfully",
+            "local_path": html_report_path
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating HTML model report: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to generate HTML model report: {str(e)}"
+        }
+
+
+# ================== TASK QUEUE MANAGEMENT TOOLS ==================
+
+@mcp.tool()
+async def get_training_results(task_id: str) -> Dict[str, Any]:
+    """Get training results and task status for a specific task.
+    
+    This unified tool provides both task status and training results in one call.
+    
+    Args:
+        task_id: ID of the training task
+        
+    Returns:
+        Dictionary containing task status, progress, and results if completed
+    """
+    try:
+        task_queue = get_task_queue()
+        task_info = task_queue.get_task_status(task_id)
+        
+        if not task_info:
+            return {
+                "status": "error",
+                "message": f"Task {task_id} not found"
+            }
+        
+        result = {
+            "task_id": task_id,
+            "task_type": task_info.task_type.value,
+            "status": task_info.status.value,
+            "progress": task_info.progress,
+            "progress_message": task_info.progress_message,
+            "created_at": task_info.created_at.isoformat() if task_info.created_at else None,
+            "started_at": task_info.started_at.isoformat() if task_info.started_at else None,
+            "completed_at": task_info.completed_at.isoformat() if task_info.completed_at else None,
+            "parameters": task_info.parameters or {},
+        }
+        
+        # Add duration information
+        if task_info.estimated_duration:
+            result["estimated_duration"] = task_info.estimated_duration
+        if task_info.actual_duration:
+            result["actual_duration"] = task_info.actual_duration
+        
+        # Add results if completed successfully
+        if task_info.status == TaskStatus.COMPLETED and task_info.result:
+            result["training_results"] = task_info.result
+            
+        # Add error information if failed
+        if task_info.status == TaskStatus.FAILED and task_info.error_message:
+            result["error_message"] = task_info.error_message
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting training results: {str(e)}")
+        return {
+            "status": "error", 
+            "message": f"Failed to get training results: {str(e)}"
+        }
+
+
+@mcp.tool()
+async def list_training_tasks(
+    status_filter: Optional[str] = None,
+    task_type_filter: Optional[str] = None, 
+    limit: int = 20
+) -> Dict[str, Any]:
+    """List all training tasks with their status.
+    
+    Args:
+        status_filter: Filter by task status (pending, running, completed, failed, cancelled)
+        task_type_filter: Filter by task type (regression_training, classification_training, prediction)
+        limit: Maximum number of tasks to return (default: 20)
+        
+    Returns:
+        Dictionary containing list of tasks with their status information
+    """
+    try:
+        task_queue = get_task_queue()
+        
+        # Parse filters
+        status_enum = None
+        if status_filter:
+            try:
+                status_enum = TaskStatus(status_filter.lower())
+            except ValueError:
+                return {
+                    "status": "error",
+                    "message": f"Invalid status filter: {status_filter}. Valid values: {[s.value for s in TaskStatus]}"
+                }
+        
+        task_type_enum = None
+        if task_type_filter:
+            try:
+                task_type_enum = TaskType(task_type_filter.lower())
+            except ValueError:
+                return {
+                    "status": "error", 
+                    "message": f"Invalid task type filter: {task_type_filter}. Valid values: {[t.value for t in TaskType]}"
+                }
+        
+        # Get filtered tasks
+        tasks = task_queue.list_tasks(
+            status_filter=status_enum,
+            task_type_filter=task_type_enum,
+            limit=limit
+        )
+        
+        # Convert to dictionaries for JSON serialization
+        task_list = []
+        for task in tasks:
+            task_dict = {
+                "task_id": task.task_id,
+                "task_type": task.task_type.value,
+                "status": task.status.value,
+                "progress": task.progress,
+                "progress_message": task.progress_message,
+                "created_at": task.created_at.isoformat() if task.created_at else None,
+                "started_at": task.started_at.isoformat() if task.started_at else None,
+                "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                "parameters": task.parameters or {}
+            }
+            
+            # Add duration info if available
+            if task.estimated_duration:
+                task_dict["estimated_duration"] = task.estimated_duration
+            if task.actual_duration:
+                task_dict["actual_duration"] = task.actual_duration
+                
+            # Add error message for failed tasks
+            if task.status == TaskStatus.FAILED and task.error_message:
+                task_dict["error_message"] = task.error_message
+                
+            task_list.append(task_dict)
+        
+        return {
+            "status": "success",
+            "tasks": task_list,
+            "total_returned": len(task_list),
+            "filters_applied": {
+                "status": status_filter,
+                "task_type": task_type_filter,
+                "limit": limit
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing training tasks: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to list training tasks: {str(e)}"
+        }
+
+
+@mcp.tool()
+async def get_queue_status() -> Dict[str, Any]:
+    """Get overall training queue status and statistics.
+    
+    Returns:
+        Dictionary containing queue status, task counts, and system information
+    """
+    try:
+        task_queue = get_task_queue()
+        queue_status = task_queue.get_queue_status()
+        
+        # Add additional system information
+        result = {
+            "status": "success",
+            "queue_status": queue_status,
+            "system_info": {
+                "persistence_file": str(task_queue.persistence_file),
+                "persistence_file_exists": task_queue.persistence_file.exists()
+            }
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting queue status: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to get queue status: {str(e)}"
+        }
+
+
+@mcp.tool()
+async def cancel_training_task(task_id: str) -> Dict[str, Any]:
+    """Cancel a training task by task ID.
+    
+    Can only cancel tasks that are pending or currently running.
+    Completed, failed, or already cancelled tasks cannot be cancelled.
+    
+    Args:
+        task_id: ID of the task to cancel
+        
+    Returns:
+        Dictionary containing cancellation status
+    """
+    try:
+        task_queue = get_task_queue()
+        
+        # Check if task exists
+        task_info = task_queue.get_task_status(task_id)
+        if not task_info:
+            return {
+                "status": "error",
+                "message": f"Task {task_id} not found"
+            }
+        
+        # Attempt to cancel the task
+        cancelled = await task_queue.cancel_task(task_id)
+        
+        if cancelled:
+            return {
+                "status": "success",
+                "task_id": task_id,
+                "message": "Task cancelled successfully",
+                "previous_status": task_info.status.value
+            }
+        else:
+            return {
+                "status": "error",
+                "task_id": task_id,
+                "message": f"Cannot cancel task with status: {task_info.status.value}",
+                "current_status": task_info.status.value
+            }
+        
+    except Exception as e:
+        logger.error(f"Error cancelling task: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to cancel task: {str(e)}"
+        }
 
 
 class NeuralNetworkMCPServer:
@@ -709,8 +1282,21 @@ class NeuralNetworkMCPServer:
         """
         logger.info(f"Starting Neural Network MCP Server")
         logger.info(f"Models will be saved to: ./trained_model")
-        # FastMCP typically runs in STDIO mode for MCP protocol
-        await self.mcp.run() # type: ignore
+        
+        # Initialize task queue
+        await initialize_task_queue()
+        logger.info("Task queue initialized")
+        
+        try:
+            # FastMCP typically runs in STDIO mode for MCP protocol
+            await self.mcp.run() # type: ignore
+        except KeyboardInterrupt:
+            logger.info("Server shutdown requested")
+        finally:
+            # Cleanup task queue on shutdown
+            from mcp_nn_tool.task_queue import shutdown_task_queue
+            await shutdown_task_queue()
+            logger.info("Task queue shutdown complete")
 
 
 # Factory function for creating the server
