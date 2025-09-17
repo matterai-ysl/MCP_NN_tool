@@ -9,6 +9,7 @@ from sklearn import preprocessing
 from typing import Optional, Tuple, Union, List, Dict, Any
 import os
 from urllib.parse import urlparse
+from pathlib import Path
 
 
 def _detect_url_format(url: str) -> str:
@@ -140,11 +141,25 @@ async def preprocess_data(
         test_df = pd.DataFrame(test_transformed, columns=test_data.columns)
         
         if save_transformed:
-            test_save_path = test_path.rsplit('.', 1)[0] + "_transformed.csv"
+            if _is_url(test_path):
+                # Extract filename from URL and create local save path
+                parsed_url = urlparse(test_path)
+                filename = Path(parsed_url.path).name
+                test_save_path = filename.rsplit('.', 1)[0] + "_transformed.csv"
+            else:
+                # Local file path
+                test_save_path = test_path.rsplit('.', 1)[0] + "_transformed.csv"
             test_df.to_csv(test_save_path, index=False)
-    
+
     if save_transformed:
-        train_save_path = train_path.rsplit('.', 1)[0] + "_transformed.csv"
+        if _is_url(train_path):
+            # Extract filename from URL and create local save path
+            parsed_url = urlparse(train_path)
+            filename = Path(parsed_url.path).name
+            train_save_path = filename.rsplit('.', 1)[0] + "_transformed.csv"
+        else:
+            # Local file path
+            train_save_path = train_path.rsplit('.', 1)[0] + "_transformed.csv"
         train_df.to_csv(train_save_path, index=False)
     
     return train_df, test_df, full_scaler, feature_scaler

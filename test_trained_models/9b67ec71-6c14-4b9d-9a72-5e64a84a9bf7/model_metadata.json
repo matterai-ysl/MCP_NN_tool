@@ -1,0 +1,26 @@
+{
+  "model_id": "9b67ec71-6c14-4b9d-9a72-5e64a84a9bf7",
+  "created_at": "2025-09-17T23:40:37.218084",
+  "task_type": "regression",
+  "feature_number": 4,
+  "target_number": 1,
+  "feature_names": [
+    "SiO2",
+    "CeO2",
+    "lignin",
+    "vinyl"
+  ],
+  "target_names": [
+    "TS-AF"
+  ],
+  "best_params": {
+    "lr": 0.008684041369318591,
+    "batch_size": 64,
+    "drop_out": 0.18539767513581237,
+    "unit": 128,
+    "layber_number": 3
+  },
+  "best_mae": 0.23834107319513956,
+  "cv_folds": 3,
+  "training_epochs": 10
+}
