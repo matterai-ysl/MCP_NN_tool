@@ -1,0 +1,11 @@
+{
+  "feature_names": [
+    "layer_thickness",
+    "hatch_distance",
+    "laser_power",
+    "laser_velocity"
+  ],
+  "target_names": [
+    "relative_density"
+  ]
+}

@@ -46,7 +46,7 @@ def _is_url(path: str) -> bool:
     return path.startswith(('http://', 'https://'))
 
 
-async def read_data_file(file_path: str, max_retries: int = 3, retry_delay: float = 1.0) -> pd.DataFrame:
+async def read_data_file(file_path: str, max_retries: int = 5, retry_delay: float = 2.0) -> pd.DataFrame:
     """Read data from various file formats including URLs with retry mechanism.
 
     Args:

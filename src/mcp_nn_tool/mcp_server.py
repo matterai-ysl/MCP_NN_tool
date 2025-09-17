@@ -138,11 +138,15 @@ async def _train_neural_network_regression_impl(
 
         model_id = str(uuid.uuid4())
         # Load and preprocess data
+        print("training_file", training_file)
+        print("开始预处理数据")
         train_data, _, full_scaler, feature_scaler = await preprocess_data(
             training_file, target_columns=target_columns
         )
-        validate_data_format(train_data, target_columns=target_columns)
+        print("预处理数据完成")
 
+        validate_data_format(train_data, target_columns=target_columns)
+        print("数据格式验证完成")
         # Extract feature and target information
         feature_names, target_names, feature_number, target_number = extract_feature_target_info(
             train_data, target_columns
@@ -1369,6 +1373,151 @@ async def cancel_training_task(task_id: str, ctx: Context = None) -> Dict[str, A
         return {
             "status": "error",
             "message": f"Failed to cancel task: {str(e)}"
+        }
+
+
+@mcp.tool()
+async def test_url_functionality(
+    test_url: str = "http://47.99.180.80/file/uploads/SLM_2.xls",
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
+    """Test URL data loading functionality in MCP environment.
+
+    This function directly tests URL loading without going through training workflow
+    to isolate and debug HTTP 404 issues in MCP server environment.
+
+    Args:
+        test_url: URL to test (default: http://47.99.180.80/file/uploads/SLM_2.xls)
+        ctx: MCP context (optional)
+
+    Returns:
+        Dictionary with test results and diagnostics
+    """
+    try:
+        logger.info(f"Testing URL functionality in MCP environment: {test_url}")
+
+        # Get user context
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+
+        test_results = {
+            "status": "running",
+            "test_url": test_url,
+            "user_id": user_id,
+            "user_models_dir": user_models_dir,
+            "tests": {},
+            "environment_info": {}
+        }
+
+        # Test 1: Direct URL ping/accessibility
+        try:
+            import requests
+            response = requests.head(test_url, timeout=10)
+            test_results["tests"]["url_accessibility"] = {
+                "status": "success",
+                "http_status": response.status_code,
+                "headers": dict(response.headers),
+                "message": f"URL accessible, HTTP {response.status_code}"
+            }
+        except Exception as e:
+            test_results["tests"]["url_accessibility"] = {
+                "status": "failed",
+                "error": str(e),
+                "message": "URL not accessible via requests.head()"
+            }
+
+        # Test 2: Direct pandas read
+        try:
+            import pandas as pd
+            data = pd.read_excel(test_url)
+            test_results["tests"]["direct_pandas"] = {
+                "status": "success",
+                "data_shape": data.shape,
+                "columns": list(data.columns),
+                "message": f"Direct pandas.read_excel() successful, shape: {data.shape}"
+            }
+        except Exception as e:
+            test_results["tests"]["direct_pandas"] = {
+                "status": "failed",
+                "error": str(e),
+                "message": "Direct pandas.read_excel() failed"
+            }
+
+        # Test 3: Our custom read_data_file function
+        try:
+            data = await read_data_file(test_url, max_retries=3, retry_delay=1.0)
+            test_results["tests"]["custom_read_data_file"] = {
+                "status": "success",
+                "data_shape": data.shape,
+                "columns": list(data.columns),
+                "message": f"Custom read_data_file() successful, shape: {data.shape}"
+            }
+        except Exception as e:
+            test_results["tests"]["custom_read_data_file"] = {
+                "status": "failed",
+                "error": str(e),
+                "message": "Custom read_data_file() failed"
+            }
+
+        # Test 4: Threading context test
+        try:
+            import concurrent.futures
+            import threading
+
+            def load_in_thread():
+                return pd.read_excel(test_url)
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(load_in_thread)
+                thread_data = future.result(timeout=30)
+
+            test_results["tests"]["threading_context"] = {
+                "status": "success",
+                "data_shape": thread_data.shape,
+                "thread_id": threading.get_ident(),
+                "message": f"Threading context successful, shape: {thread_data.shape}"
+            }
+        except Exception as e:
+            test_results["tests"]["threading_context"] = {
+                "status": "failed",
+                "error": str(e),
+                "message": "Threading context failed"
+            }
+
+        # Environment diagnostics
+        test_results["environment_info"] = {
+            "python_version": sys.version,
+            "working_directory": os.getcwd(),
+            "user_agent": getattr(requests.utils, 'default_user_agent', lambda: 'unknown')(),
+            "ssl_context_available": hasattr(__import__('ssl'), 'create_default_context'),
+            "pandas_version": pd.__version__,
+            "current_time": time.time()
+        }
+
+        # Summary
+        successful_tests = sum(1 for test in test_results["tests"].values() if test["status"] == "success")
+        total_tests = len(test_results["tests"])
+
+        test_results["status"] = "completed"
+        test_results["summary"] = {
+            "successful_tests": successful_tests,
+            "total_tests": total_tests,
+            "success_rate": f"{successful_tests}/{total_tests}",
+            "overall_result": "success" if successful_tests == total_tests else "partial_failure"
+        }
+
+        logger.info(f"URL functionality test completed: {successful_tests}/{total_tests} tests passed")
+        return test_results
+
+    except Exception as e:
+        logger.error(f"URL functionality test failed: {str(e)}")
+        import traceback
+        return {
+            "status": "error",
+            "test_url": test_url,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "message": "URL functionality test encountered an unexpected error"
         }
 
 
