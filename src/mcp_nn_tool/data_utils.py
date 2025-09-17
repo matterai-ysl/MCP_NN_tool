@@ -46,11 +46,13 @@ def _is_url(path: str) -> bool:
     return path.startswith(('http://', 'https://'))
 
 
-async def read_data_file(file_path: str) -> pd.DataFrame:
-    """Read data from various file formats including URLs.
+async def read_data_file(file_path: str, max_retries: int = 3, retry_delay: float = 1.0) -> pd.DataFrame:
+    """Read data from various file formats including URLs with retry mechanism.
 
     Args:
         file_path: Path to the data file or URL (supports .csv, .xls, .xlsx, URLs)
+        max_retries: Maximum number of retry attempts for URL access (default: 3)
+        retry_delay: Delay between retries in seconds (default: 1.0)
 
     Returns:
         DataFrame containing the loaded data
@@ -58,19 +60,42 @@ async def read_data_file(file_path: str) -> pd.DataFrame:
     Raises:
         ValueError: If file format is not supported
         FileNotFoundError: If local file does not exist
+        ConnectionError: If URL cannot be accessed after all retries
     """
     is_url = _is_url(file_path)
     print("is_url", is_url)
+
     if is_url:
-        # Handle URL data source
+        # Handle URL data source with retry mechanism
         file_format = _detect_url_format(file_path)
-        print(file_format)
-        if file_format == 'excel':
-            data = pd.read_excel(file_path)
-        elif file_format == 'tsv':
-            data = pd.read_csv(file_path, sep='\t')
-        else:  # csv or default
-            data = pd.read_csv(file_path)
+        print(f"Detected format: {file_format}")
+
+        for attempt in range(max_retries):
+            try:
+                print(f"URL access attempt {attempt + 1}/{max_retries}: {file_path}")
+
+                if file_format == 'excel':
+                    data = pd.read_excel(file_path)
+                elif file_format == 'tsv':
+                    data = pd.read_csv(file_path, sep='\t')
+                else:  # csv or default
+                    data = pd.read_csv(file_path)
+
+                print(f"✅ Successfully loaded data from URL (attempt {attempt + 1})")
+                return data
+
+            except Exception as e:
+                error_msg = str(e)
+                print(f"❌ Attempt {attempt + 1} failed: {error_msg}")
+
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    import asyncio
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    # Final attempt failed
+                    raise ConnectionError(f"Failed to load data from URL after {max_retries} attempts. Last error: {error_msg}")
     else:
         # Handle local file
         if not os.path.exists(file_path):
@@ -83,7 +108,7 @@ async def read_data_file(file_path: str) -> pd.DataFrame:
         else:
             raise ValueError(f"Unsupported file format: {file_path}")
 
-    return data
+        return data
 
 
 async def preprocess_data(

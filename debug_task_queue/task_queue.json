@@ -1,0 +1,62 @@
+{
+  "bd82ea0b-5435-48a0-a2c2-1b68b0765bd1": {
+    "task_id": "bd82ea0b-5435-48a0-a2c2-1b68b0765bd1",
+    "task_type": "regression_training",
+    "status": "completed",
+    "created_at": "2025-09-17T16:59:32.442301+00:00",
+    "started_at": "2025-09-17T16:59:32.442683+00:00",
+    "completed_at": "2025-09-17T16:59:33.985660+00:00",
+    "progress": 100.0,
+    "progress_message": "Task completed successfully",
+    "result": {
+      "status": "success",
+      "model_id": "545d7f44-65b9-4efa-8568-dcdf7be93078",
+      "best_parameters": {
+        "lr": 0.0042560438499872864,
+        "batch_size": 32,
+        "drop_out": 0.19683181057585405,
+        "unit": 96,
+        "layber_number": 2
+      },
+      "best_mae": 0.415914386510849,
+      "feature_names": [
+        "layer_thickness",
+        "hatch_distance",
+        "laser_power",
+        "laser_velocity"
+      ],
+      "target_names": [
+        "relative_density"
+      ],
+      "training_summary": {
+        "n_trials": 2,
+        "cv_folds": 2,
+        "num_epochs": 3,
+        "hyperparameter_optimization_algorithm": "TPE",
+        "loss_function": "MAE",
+        "target_columns": 1,
+        "data_shape": [
+          2703,
+          5
+        ]
+      },
+      "experiment_report": "http://47.99.180.80/nn/download/file/debug_task_queue/545d7f44-65b9-4efa-8568-dcdf7be93078/academic_report.md",
+      "training_artifacts_download_url": "More training details, such as hyperparameter optimization, cross-validation scatter plots, and training logs, are available in the http://47.99.180.80/nn/download/file/debug_task_queue/545d7f44-65b9-4efa-8568-dcdf7be93078. The **experiment_report** at http://47.99.180.80/nn/download/file/debug_task_queue/545d7f44-65b9-4efa-8568-dcdf7be93078/academic_report.md provides comprehensive records and analysis for reproducibility and academic reference.",
+      "training_report_html_path": "http://47.99.180.80/nn/static/debug_task_queue/545d7f44-65b9-4efa-8568-dcdf7be93078/nn_training_report_545d7f44-65b9-4efa-8568-dcdf7be93078_20250918_005933.html"
+    },
+    "error_message": null,
+    "parameters": {
+      "training_file": "http://47.99.180.80/file/uploads/SLM_2.xls",
+      "target_columns": 1,
+      "n_trials": 2,
+      "cv_folds": 2,
+      "num_epochs": 3,
+      "algorithm": "TPE",
+      "loss_function": "MAE",
+      "task_type": "regression",
+      "models_dir": "./debug_task_queue"
+    },
+    "estimated_duration": 60.0,
+    "actual_duration": 1.5428121089935303
+  }
+}
