@@ -60,11 +60,11 @@ async def read_data_file(file_path: str) -> pd.DataFrame:
         FileNotFoundError: If local file does not exist
     """
     is_url = _is_url(file_path)
-
+    print("is_url", is_url)
     if is_url:
         # Handle URL data source
         file_format = _detect_url_format(file_path)
-
+        print(file_format)
         if file_format == 'excel':
             data = pd.read_excel(file_path)
         elif file_format == 'tsv':
