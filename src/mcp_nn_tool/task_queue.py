@@ -446,16 +446,31 @@ class TaskQueue:
             logger.error(f"Failed to load tasks from {self.persistence_file}: {e}")
 
 
-# Global task queue instance
-_task_queue: Optional[TaskQueue] = None
+# Global task queue instances per user
+_task_queues: Dict[str, TaskQueue] = {}
 
 
-def get_task_queue() -> TaskQueue:
-    """Get or create the global task queue instance."""
-    global _task_queue
-    if _task_queue is None:
-        _task_queue = TaskQueue()
-    return _task_queue
+def get_task_queue(user_models_dir: Optional[str] = None) -> TaskQueue:
+    """Get or create a user-specific task queue instance.
+
+    Args:
+        user_models_dir: User-specific models directory for persistence
+
+    Returns:
+        TaskQueue instance for the user
+    """
+    global _task_queues
+
+    # Use default directory if not specified
+    if user_models_dir is None:
+        user_models_dir = "./trained_model"
+
+    # Get or create user-specific task queue
+    if user_models_dir not in _task_queues:
+        persistence_file = f"{user_models_dir}/task_queue.json"
+        _task_queues[user_models_dir] = TaskQueue(persistence_file=persistence_file)
+
+    return _task_queues[user_models_dir]
 
 
 async def initialize_task_queue():
@@ -466,8 +481,9 @@ async def initialize_task_queue():
 
 
 async def shutdown_task_queue():
-    """Shutdown the task queue."""
-    global _task_queue
-    if _task_queue is not None:
-        await _task_queue.stop()
-        _task_queue = None
+    """Shutdown all task queues."""
+    global _task_queues
+    for user_dir, task_queue in _task_queues.items():
+        if task_queue is not None:
+            await task_queue.stop()
+    _task_queues.clear()

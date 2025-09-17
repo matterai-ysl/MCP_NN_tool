@@ -8,31 +8,80 @@ import numpy as np
 from sklearn import preprocessing
 from typing import Optional, Tuple, Union, List, Dict, Any
 import os
+from urllib.parse import urlparse
+
+
+def _detect_url_format(url: str) -> str:
+    """Detect file format from URL path.
+
+    Args:
+        url: URL to analyze
+
+    Returns:
+        File format ('csv', 'excel', 'tsv')
+    """
+    parsed = urlparse(url)
+    path = parsed.path.lower()
+
+    if path.endswith(('.xlsx', '.xls')):
+        return 'excel'
+    elif path.endswith('.tsv'):
+        return 'tsv'
+    elif path.endswith(('.csv', '.txt')):
+        return 'csv'
+    else:
+        return 'csv'  # Default to CSV
+
+
+def _is_url(path: str) -> bool:
+    """Check if path is a URL.
+
+    Args:
+        path: Path or URL to check
+
+    Returns:
+        True if path is a URL
+    """
+    return path.startswith(('http://', 'https://'))
 
 
 async def read_data_file(file_path: str) -> pd.DataFrame:
-    """Read data from various file formats.
-    
+    """Read data from various file formats including URLs.
+
     Args:
-        file_path: Path to the data file (supports .csv, .xls, .xlsx)
-        
+        file_path: Path to the data file or URL (supports .csv, .xls, .xlsx, URLs)
+
     Returns:
         DataFrame containing the loaded data
-        
+
     Raises:
         ValueError: If file format is not supported
-        FileNotFoundError: If file does not exist
+        FileNotFoundError: If local file does not exist
     """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
-    
-    if file_path.endswith(".csv"):
-        data = pd.read_csv(file_path)
-    elif file_path.endswith((".xls", ".xlsx")):
-        data = pd.read_excel(file_path)
+    is_url = _is_url(file_path)
+
+    if is_url:
+        # Handle URL data source
+        file_format = _detect_url_format(file_path)
+
+        if file_format == 'excel':
+            data = pd.read_excel(file_path)
+        elif file_format == 'tsv':
+            data = pd.read_csv(file_path, sep='\t')
+        else:  # csv or default
+            data = pd.read_csv(file_path)
     else:
-        raise ValueError(f"Unsupported file format: {file_path}")
-    
+        # Handle local file
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        if file_path.endswith(".csv"):
+            data = pd.read_csv(file_path)
+        elif file_path.endswith((".xls", ".xlsx")):
+            data = pd.read_excel(file_path)
+        else:
+            raise ValueError(f"Unsupported file format: {file_path}")
+
     return data
 
 

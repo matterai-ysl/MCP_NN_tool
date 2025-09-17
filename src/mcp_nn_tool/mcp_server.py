@@ -18,8 +18,9 @@ from typing import Any, Dict, List, Optional, Union, Callable
 import logging
 import uuid
 import numpy as np
+import re
 # FastMCP imports
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
 import time
 
 from mcp_nn_tool.data_utils import (
@@ -55,8 +56,43 @@ mcp = FastMCP("Neural-Network-MCP-Tool",
               version="0.1.0"
               )
 
-# Initialize model manager with './trained_model' directory
-model_manager = ModelManager("./trained_model")
+# Global model manager removed - now using user-specific model managers
+
+
+def get_user_models_dir(user_id: Optional[str] = None) -> str:
+    """Get user-specific models directory with security validation.
+
+    Args:
+        user_id: User ID from MCP context, defaults to "default" if None
+
+    Returns:
+        Path to user-specific models directory
+    """
+    if user_id is None or user_id.strip() == "":
+        user_id = "default"
+
+    # Clean user ID to prevent path traversal attacks
+    user_id = re.sub(r'[^\w\-_]', '_', user_id)
+
+    user_dir = Path("trained_models") / user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+    return str(user_dir)
+
+
+def get_user_id(ctx: Optional[Context] = None) -> Optional[str]:
+    """Extract user ID from MCP context.
+
+    Args:
+        ctx: MCP Context object
+
+    Returns:
+        User ID from request headers or None
+    """
+    if ctx is not None and hasattr(ctx, 'request_context') and ctx.request_context is not None:
+        if hasattr(ctx.request_context, 'request') and ctx.request_context.request is not None:
+            if hasattr(ctx.request_context.request, 'headers'):
+                return ctx.request_context.request.headers.get("user_id", None)
+    return None
 
 
 async def _train_neural_network_regression_impl(
@@ -67,7 +103,8 @@ async def _train_neural_network_regression_impl(
     num_epochs: int = 500,
     algorithm: str = "TPE",
     loss_function: str = "MAE",
-    progress_callback: Optional[Callable] = None
+    progress_callback: Optional[Callable] = None,
+    models_dir: Optional[str] = None
 ) -> Dict[str, Any]:
     """Train a neural network model with hyperparameter optimization.
     
@@ -92,13 +129,20 @@ async def _train_neural_network_regression_impl(
         # Record training start time
         training_start_time = time.time()
         
+        # Use provided models_dir or default
+        if models_dir is None:
+            models_dir = "./trained_model"
+
+        # Create user-specific model manager
+        user_model_manager = ModelManager(models_dir)
+
         model_id = str(uuid.uuid4())
         # Load and preprocess data
         train_data, _, full_scaler, feature_scaler = await preprocess_data(
             training_file, target_columns=target_columns
         )
         validate_data_format(train_data, target_columns=target_columns)
-        
+
         # Extract feature and target information
         feature_names, target_names, feature_number, target_number = extract_feature_target_info(
             train_data, target_columns
@@ -119,7 +163,7 @@ async def _train_neural_network_regression_impl(
                     await progress_callback(0, str(info))
         
         # Create temporary model folder for saving training artifacts
-        temp_model_folder = f"trained_model/{model_id}"
+        temp_model_folder = f"{models_dir}/{model_id}"
         os.makedirs(temp_model_folder, exist_ok=True)
         
         # Optimize hyperparameters with saving
@@ -157,7 +201,7 @@ async def _train_neural_network_regression_impl(
         final_training_time = time.time() - final_training_start_time
         
         # Save model (auto-generate model ID)
-        saved_model_id = await model_manager.save_model(
+        saved_model_id = await user_model_manager.save_model(
             model_states=model_states,
             best_params=best_params,
             best_mae=best_loss,
@@ -171,7 +215,7 @@ async def _train_neural_network_regression_impl(
         )
         
         # Get actual model folder path
-        model_folder = model_manager.get_model_folder_path(saved_model_id)
+        model_folder = user_model_manager.get_model_folder_path(saved_model_id)
         
         # Generate academic report
         total_training_time = time.time() - training_start_time
@@ -212,7 +256,7 @@ async def _train_neural_network_regression_impl(
         result = {
             "status": "success",
             "model_id": saved_model_id,
-            "model_folder": model_folder,
+            # "model_folder": model_folder,
             "best_parameters": best_params,
             "best_mae": float(best_loss),
             "feature_names": feature_names,
@@ -221,13 +265,13 @@ async def _train_neural_network_regression_impl(
                 "n_trials": n_trials,
                 "cv_folds": cv_folds,
                 "num_epochs": num_epochs,
-                "algorithm": algorithm,
+                "hyperparameter_optimization_algorithm": algorithm,
                 "loss_function": loss_function,
                 "target_columns": target_columns,
                 "data_shape": list(train_data.shape),
-                "optimization_time": optimization_time,
-                "training_time": final_training_time,
-                "total_time": total_training_time
+                # "optimization_time": optimization_time,
+                # "training_time": final_training_time,
+                # "total_time": total_training_time
             },
             "experiment_report": report_url_path,
             "training_artifacts_download_url": f"More training details, such as hyperparameter optimization, cross-validation scatter plots, and training logs, are available in the {model_folder_url_path}. The **experiment_report** at {report_url_path} provides comprehensive records and analysis for reproducibility and academic reference."
@@ -267,6 +311,7 @@ async def train_neural_network_regression(
     num_epochs: int = 500,
     algorithm: str = "TPE",
     loss_function: str = "MAE",
+    ctx: Context = None, # type: ignore
 ) -> Dict[str, Any]:
     """Submit a neural network regression training task to the queue.
     
@@ -286,9 +331,13 @@ async def train_neural_network_regression(
         Dictionary containing task ID and submission status
     """
     try:
+        # Get user-specific models directory
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+
         # Estimate training duration (rough estimation based on parameters)
         estimated_duration = (n_trials * cv_folds * num_epochs * 0.01) + 60  # seconds
-        
+
         # Task parameters for tracking
         task_parameters = {
             "training_file": training_file,
@@ -298,11 +347,12 @@ async def train_neural_network_regression(
             "num_epochs": num_epochs,
             "algorithm": algorithm,
             "loss_function": loss_function,
-            "task_type": "regression"
+            "task_type": "regression",
+            "models_dir": user_models_dir
         }
         
         # Submit task to queue
-        task_queue = get_task_queue()
+        task_queue = get_task_queue(user_models_dir)
         task_id = await task_queue.submit_task(
             task_type=TaskType.REGRESSION_TRAINING,
             task_function=_train_neural_network_regression_impl,
@@ -314,7 +364,8 @@ async def train_neural_network_regression(
                 "cv_folds": cv_folds,
                 "num_epochs": num_epochs,
                 "algorithm": algorithm,
-                "loss_function": loss_function
+                "loss_function": loss_function,
+                "models_dir": user_models_dir
             },
             task_parameters=task_parameters,
             estimated_duration=estimated_duration
@@ -341,7 +392,8 @@ async def train_neural_network_regression(
 async def predict_from_file_neural_network(
     model_id: str,
     prediction_file: str,
-    generate_experiment_report: bool = True
+    generate_experiment_report: bool = True,
+    ctx: Context = None, # type: ignore
 ) -> dict:
     """Make predictions on data from a file (supports both regression and classification).
     
@@ -356,8 +408,13 @@ async def predict_from_file_neural_network(
         Dictionary containing prediction results and optional experiment report path
     """
     try:
+        # Get user-specific models directory and create user model manager
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        user_model_manager = ModelManager(user_models_dir)
+
         # Load model components to determine task type
-        model_components = await model_manager.load_model(model_id)
+        model_components = await user_model_manager.load_model(model_id)
         task_type = model_components['metadata'].get('task_type', 'regression')
         
         logger.info(f"Model {model_id} detected as {task_type} task")
@@ -454,9 +511,10 @@ async def predict_from_file_neural_network(
 
 @mcp.tool()
 async def predict_from_values_neural_network(
-    model_id: str, 
+    model_id: str,
     feature_values: Union[list, List[list]],
-    generate_experiment_report: bool = True
+    generate_experiment_report: bool = True,
+    ctx: Context = None,
 ) -> dict:
     """Make prediction from feature values (supports both regression and classification).
     
@@ -475,8 +533,13 @@ async def predict_from_values_neural_network(
         Dictionary containing prediction results and optional experiment report path
     """
     try:
+        # Get user-specific models directory and create user model manager
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        user_model_manager = ModelManager(user_models_dir)
+
         # Load model components to determine task type
-        model_components = await model_manager.load_model(model_id)
+        model_components = await user_model_manager.load_model(model_id)
         task_type = model_components['metadata'].get('task_type', 'regression')
         
         logger.info(f"Model {model_id} detected as {task_type} task")
@@ -562,24 +625,29 @@ async def predict_from_values_neural_network(
 
 
 @mcp.tool()
-async def list_neural_network_models() -> Dict[str, Any]:
+async def list_neural_network_models(ctx: Context = None) -> Dict[str, Any]:
     """List all saved neural network models.
     
     Returns:
         Dictionary containing list of model information
     """
     try:
-        models = await model_manager.list_models()
-        
+        # Get user-specific models directory and create user model manager
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        user_model_manager = ModelManager(user_models_dir)
+
+        models = await user_model_manager.list_models()
+
         # Add folder paths to model info
         for model in models:
-            model["folder_path"] = model_manager.get_model_folder_path(model["model_id"])
-        
+            model["folder_path"] = user_model_manager.get_model_folder_path(model["model_id"])
+
         result = {
             "status": "success",
             "models": models,
             "total_models": len(models),
-            "models_directory": "./trained_model"
+            "models_directory": user_models_dir
         }
         
         return result
@@ -590,7 +658,7 @@ async def list_neural_network_models() -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def get_neural_network_model_info(model_id: str) -> Dict[str, Any]:
+async def get_neural_network_model_info(model_id: str, ctx: Context = None) -> Dict[str, Any]:
     """Get detailed information about a specific model.
     
     Args:
@@ -600,9 +668,14 @@ async def get_neural_network_model_info(model_id: str) -> Dict[str, Any]:
         Dictionary containing detailed model metadata
     """
     try:
-        model_components = await model_manager.load_model(model_id)
+        # Get user-specific models directory and create user model manager
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        user_model_manager = ModelManager(user_models_dir)
+
+        model_components = await user_model_manager.load_model(model_id)
         metadata = model_components['metadata']
-        
+
         # Add folder information
         metadata["model_folder"] = model_components["model_folder"]
         metadata["folder_exists"] = os.path.exists(model_components["model_folder"])
@@ -632,7 +705,7 @@ async def get_neural_network_model_info(model_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def delete_neural_network_model(model_id: str) -> Dict[str, Any]:
+async def delete_neural_network_model(model_id: str, ctx: Context = None) -> Dict[str, Any]:
     """Delete a saved neural network model and its folder.
     
     Args:
@@ -642,10 +715,15 @@ async def delete_neural_network_model(model_id: str) -> Dict[str, Any]:
         Dictionary containing deletion status
     """
     try:
+        # Get user-specific models directory and create user model manager
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        user_model_manager = ModelManager(user_models_dir)
+
         # Get folder path before deletion
-        folder_path = model_manager.get_model_folder_path(model_id)
-        
-        success = await model_manager.delete_model(model_id)
+        folder_path = user_model_manager.get_model_folder_path(model_id)
+
+        success = await user_model_manager.delete_model(model_id)
         
         result = {
             "status": "success" if success else "failed",
@@ -669,7 +747,8 @@ async def _train_classification_model_neural_network_impl(
     cv_folds: int = 5,
     num_epochs: int = 300,
     algorithm: str = "TPE",
-    progress_callback: Optional[Callable] = None
+    progress_callback: Optional[Callable] = None,
+    models_dir: Optional[str] = None
 ) -> Dict[str, Any]:
     """Train a classification neural network model with hyperparameter optimization.
     
@@ -692,7 +771,14 @@ async def _train_classification_model_neural_network_impl(
 
         # Record training start time
         training_start_time = time.time()
-        
+
+        # Use provided models_dir or default
+        if models_dir is None:
+            models_dir = "./trained_model"
+
+        # Create user-specific model manager
+        user_model_manager = ModelManager(models_dir)
+
         model_id = str(uuid.uuid4())
         
         # Load and preprocess classification data with automatic label encoding
@@ -724,7 +810,7 @@ async def _train_classification_model_neural_network_impl(
                     await progress_callback(0, str(info))
         
         # Create temporary model folder for saving training artifacts
-        temp_model_folder = f"trained_model/{model_id}"
+        temp_model_folder = f"{models_dir}/{model_id}"
         os.makedirs(temp_model_folder, exist_ok=True)
         
         # Optimize hyperparameters with saving
@@ -760,7 +846,7 @@ async def _train_classification_model_neural_network_impl(
         final_training_time = time.time() - final_training_start_time
         
         # Save classification model with extended metadata including label info
-        saved_model_id = await model_manager.save_classification_model(
+        saved_model_id = await user_model_manager.save_classification_model(
             model_states=model_states,
             best_params=best_params,
             best_accuracy=final_accuracy,
@@ -776,7 +862,7 @@ async def _train_classification_model_neural_network_impl(
         )
         
         # Get actual model folder path
-        model_folder = model_manager.get_model_folder_path(saved_model_id)
+        model_folder = user_model_manager.get_model_folder_path(saved_model_id)
         
         total_training_time = time.time() - training_start_time
         
@@ -883,6 +969,7 @@ async def train_classification_model_neural_network(
     cv_folds: int = 5,
     num_epochs: int = 300,
     algorithm: str = "TPE",
+    ctx: Context = None,
 ) -> Dict[str, Any]:
     """Submit a classification neural network training task to the queue.
     
@@ -903,9 +990,13 @@ async def train_classification_model_neural_network(
         Dictionary containing task ID and submission status
     """
     try:
+        # Get user-specific models directory
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+
         # Estimate training duration (rough estimation based on parameters)
         estimated_duration = (n_trials * cv_folds * num_epochs * 0.008) + 45  # seconds, slightly faster than regression
-        
+
         # Task parameters for tracking
         task_parameters = {
             "training_file": training_file,
@@ -913,11 +1004,12 @@ async def train_classification_model_neural_network(
             "cv_folds": cv_folds,
             "num_epochs": num_epochs,
             "algorithm": algorithm,
-            "task_type": "classification"
+            "task_type": "classification",
+            "models_dir": user_models_dir
         }
         
         # Submit task to queue
-        task_queue = get_task_queue()
+        task_queue = get_task_queue(user_models_dir)
         task_id = await task_queue.submit_task(
             task_type=TaskType.CLASSIFICATION_TRAINING,
             task_function=_train_classification_model_neural_network_impl,
@@ -927,7 +1019,8 @@ async def train_classification_model_neural_network(
                 "n_trials": n_trials,
                 "cv_folds": cv_folds,
                 "num_epochs": num_epochs,
-                "algorithm": algorithm
+                "algorithm": algorithm,
+                "models_dir": user_models_dir
             },
             task_parameters=task_parameters,
             estimated_duration=estimated_duration
@@ -953,7 +1046,8 @@ async def train_classification_model_neural_network(
 @mcp.tool()
 async def generate_html_model_report(
     model_id: str,
-    report_type: str = "training"
+    report_type: str = "training",
+    ctx: Context = None,
 ) -> Dict[str, Any]:
     """Generate an HTML report for an existing trained model.
     
@@ -965,8 +1059,13 @@ async def generate_html_model_report(
         Dictionary containing HTML report path and generation status
     """
     try:
+        # Get user-specific models directory and create user model manager
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        user_model_manager = ModelManager(user_models_dir)
+
         # Load model components
-        model_components = await model_manager.load_model(model_id)
+        model_components = await user_model_manager.load_model(model_id)
         metadata = model_components['metadata']
         model_folder = model_components['model_folder']
         
@@ -1029,7 +1128,7 @@ async def generate_html_model_report(
 # ================== TASK QUEUE MANAGEMENT TOOLS ==================
 
 @mcp.tool()
-async def get_training_results(task_id: str) -> Dict[str, Any]:
+async def get_training_results(task_id: str, ctx: Context = None) -> Dict[str, Any]:
     """Get training results and task status for a specific task.
     
     This unified tool provides both task status and training results in one call.
@@ -1041,7 +1140,10 @@ async def get_training_results(task_id: str) -> Dict[str, Any]:
         Dictionary containing task status, progress, and results if completed
     """
     try:
-        task_queue = get_task_queue()
+        # Get user-specific task queue
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        task_queue = get_task_queue(user_models_dir)
         task_info = task_queue.get_task_status(task_id)
         
         if not task_info:
@@ -1089,8 +1191,9 @@ async def get_training_results(task_id: str) -> Dict[str, Any]:
 @mcp.tool()
 async def list_training_tasks(
     status_filter: Optional[str] = None,
-    task_type_filter: Optional[str] = None, 
-    limit: int = 20
+    task_type_filter: Optional[str] = None,
+    limit: int = 20,
+    ctx: Context = None,
 ) -> Dict[str, Any]:
     """List all training tasks with their status.
     
@@ -1103,7 +1206,10 @@ async def list_training_tasks(
         Dictionary containing list of tasks with their status information
     """
     try:
-        task_queue = get_task_queue()
+        # Get user-specific task queue
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        task_queue = get_task_queue(user_models_dir)
         
         # Parse filters
         status_enum = None
@@ -1180,14 +1286,17 @@ async def list_training_tasks(
 
 
 @mcp.tool()
-async def get_queue_status() -> Dict[str, Any]:
+async def get_queue_status(ctx: Context = None) -> Dict[str, Any]:
     """Get overall training queue status and statistics.
     
     Returns:
         Dictionary containing queue status, task counts, and system information
     """
     try:
-        task_queue = get_task_queue()
+        # Get user-specific task queue
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        task_queue = get_task_queue(user_models_dir)
         queue_status = task_queue.get_queue_status()
         
         # Add additional system information
@@ -1211,7 +1320,7 @@ async def get_queue_status() -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def cancel_training_task(task_id: str) -> Dict[str, Any]:
+async def cancel_training_task(task_id: str, ctx: Context = None) -> Dict[str, Any]:
     """Cancel a training task by task ID.
     
     Can only cancel tasks that are pending or currently running.
@@ -1224,7 +1333,10 @@ async def cancel_training_task(task_id: str) -> Dict[str, Any]:
         Dictionary containing cancellation status
     """
     try:
-        task_queue = get_task_queue()
+        # Get user-specific task queue
+        user_id = get_user_id(ctx)
+        user_models_dir = get_user_models_dir(user_id)
+        task_queue = get_task_queue(user_models_dir)
         
         # Check if task exists
         task_info = task_queue.get_task_status(task_id)
@@ -1265,12 +1377,11 @@ class NeuralNetworkMCPServer:
     
     def __init__(self, models_dir: str = "./trained_model"):
         """Initialize the Neural Network MCP Server.
-        
+
         Args:
             models_dir: Directory to store trained models (default: './trained_model')
         """
-        global model_manager
-        model_manager = ModelManager(models_dir)
+        # Note: models_dir parameter is kept for compatibility but user-specific directories are now used
         self.mcp = mcp
         
     async def run(self, host: str = "localhost", port: int = 8000):
@@ -1281,7 +1392,7 @@ class NeuralNetworkMCPServer:
             port: Port to bind the server (not used in FastMCP STDIO mode)
         """
         logger.info(f"Starting Neural Network MCP Server")
-        logger.info(f"Models will be saved to: ./trained_model")
+        logger.info(f"Models will be saved to user-specific directories under: trained_models/{{user_id}}")
         
         # Initialize task queue
         await initialize_task_queue()
