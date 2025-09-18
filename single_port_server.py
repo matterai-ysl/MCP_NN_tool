@@ -43,7 +43,7 @@ class SinglePortMCPServer:
     def __init__(self, port: int = MCP_PORT, host: str = "0.0.0.0"):
         self.port = port
         self.host = host
-        self.trained_models_dir = Path("./trained_model")
+        self.trained_models_dir = Path("./trained_models")
         self.reports_dir = Path("./reports")
         
         # 确保目录存在
