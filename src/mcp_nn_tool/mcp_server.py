@@ -104,7 +104,8 @@ async def _train_neural_network_regression_impl(
     algorithm: str = "TPE",
     loss_function: str = "MAE",
     progress_callback: Optional[Callable] = None,
-    models_dir: Optional[str] = None
+    models_dir: Optional[str] = None,
+    task_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Train a neural network model with hyperparameter optimization.
     
@@ -136,7 +137,7 @@ async def _train_neural_network_regression_impl(
         # Create user-specific model manager
         user_model_manager = ModelManager(models_dir)
 
-        model_id = str(uuid.uuid4())
+        model_id = task_id if task_id else str(uuid.uuid4())
         # Load and preprocess data
         print("training_file", training_file)
         print("开始预处理数据")
@@ -257,14 +258,19 @@ async def _train_neural_network_regression_impl(
         
         report_url_path = get_download_url(report_path) # type: ignore
         model_folder_url_path = get_download_url(model_folder) # type: ignore
+
         result = {
             "status": "success",
             "model_id": saved_model_id,
             # "model_folder": model_folder,
             "best_parameters": best_params,
             "best_mae": float(best_loss),
+            "cv_mse": float(cv_results.get('cv_mse', 0)) if cv_results else 0,
+            "cv_r2": float(cv_results.get('cv_r2', 0)) if cv_results else 0,
             "feature_names": feature_names,
             "target_names": target_names,
+            "cv_results": cv_results,
+            "task_type": "regression",
             "training_summary": {
                 "n_trials": n_trials,
                 "cv_folds": cv_folds,
@@ -280,7 +286,8 @@ async def _train_neural_network_regression_impl(
             "experiment_report": report_url_path,
             "training_artifacts_download_url": f"More training details, such as hyperparameter optimization, cross-validation scatter plots, and training logs, are available in the {model_folder_url_path}. The **experiment_report** at {report_url_path} provides comprehensive records and analysis for reproducibility and academic reference."
         }
-        
+        print("*"*100)
+        print("result", result)
         # Generate HTML report after result is created
         html_report_path = None
         try:
@@ -299,6 +306,8 @@ async def _train_neural_network_regression_impl(
         logger.info(f"Training completed successfully. Model ID: {saved_model_id}")
         logger.info(f"Model saved to: {model_folder}")
         logger.info(f"Academic report: {report_path}")
+        #返回结果删除cv_results
+        result.pop("cv_results")
         return result
         
     except Exception as e:
@@ -752,7 +761,8 @@ async def _train_classification_model_neural_network_impl(
     num_epochs: int = 300,
     algorithm: str = "TPE",
     progress_callback: Optional[Callable] = None,
-    models_dir: Optional[str] = None
+    models_dir: Optional[str] = None,
+    task_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Train a classification neural network model with hyperparameter optimization.
     
@@ -783,8 +793,8 @@ async def _train_classification_model_neural_network_impl(
         # Create user-specific model manager
         user_model_manager = ModelManager(models_dir)
 
-        model_id = str(uuid.uuid4())
-        
+        model_id = task_id if task_id else str(uuid.uuid4())
+
         # Load and preprocess classification data with automatic label encoding
         processed_df, feature_scaler, label_info = await preprocess_classification_data(training_file)
         

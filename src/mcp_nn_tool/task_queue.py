@@ -222,6 +222,10 @@ class TaskQueue:
             # Add progress callback to kwargs if not present
             if 'progress_callback' not in task_kwargs:
                 task_kwargs['progress_callback'] = progress_callback
+
+            # Add task_id to kwargs if not present
+            if 'task_id' not in task_kwargs:
+                task_kwargs['task_id'] = task_id
             
             # Execute the task function
             start_time = time.time()

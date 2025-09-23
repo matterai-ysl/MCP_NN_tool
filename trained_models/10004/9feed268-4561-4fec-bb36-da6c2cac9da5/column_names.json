@@ -1,0 +1,18 @@
+{
+  "feature_names": [
+    "BPA",
+    "HBPA",
+    "Epoxy",
+    "Ph",
+    "CYH",
+    "DPh",
+    "DCYH",
+    "Amine",
+    "Isobutyl",
+    "Isooctyl",
+    "PCL"
+  ],
+  "target_names": [
+    "PSD"
+  ]
+}

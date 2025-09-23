@@ -17,7 +17,7 @@ import seaborn as sns
 import os
 from pathlib import Path
 from sklearn.model_selection import KFold
-from sklearn.metrics import mean_absolute_error, r2_score, accuracy_score, f1_score, classification_report, roc_curve, auc, roc_auc_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score, f1_score, classification_report, roc_curve, auc, roc_auc_score
 from sklearn.preprocessing import label_binarize
 from itertools import cycle
 from typing import Dict, Any, List, Tuple, Optional, Callable
@@ -544,7 +544,20 @@ async def train_final_model(
             await progress_callback(progress_info)
     
     average_mae = np.mean(mae_scores)
-    
+
+    # Calculate MSE and R² scores using cross-validation predictions
+    cv_predictions_array = np.array(cv_predictions)
+    cv_actuals_array = np.array(cv_actuals)
+
+    if target_number == 1:
+        # For single target
+        cv_mse = mean_squared_error(cv_actuals_array, cv_predictions_array)
+        cv_r2 = r2_score(cv_actuals_array, cv_predictions_array)
+    else:
+        # For multi-target, calculate mean across all targets
+        cv_mse = mean_squared_error(cv_actuals_array, cv_predictions_array, multioutput='uniform_average')
+        cv_r2 = r2_score(cv_actuals_array, cv_predictions_array, multioutput='uniform_average')
+
     # Prepare results dictionary
     cv_results = {
         'training_histories': training_histories,
@@ -554,6 +567,8 @@ async def train_final_model(
         'cv_original_features': cv_original_features,
         'fold_mae_scores': mae_scores,
         'average_mae': average_mae,
+        'cv_mse': cv_mse,
+        'cv_r2': cv_r2,
         'target_number': target_number
     }
     
@@ -1238,6 +1253,8 @@ The final model was trained using {cv_folds}-fold cross-validation with the best
 | Metric | Value |
 |--------|-------|
 | Average CV MAE | {float(average_mae):.6f} |
+| CV MSE | {float(cv_results['cv_mse']):.6f} |
+| CV R² Score | {float(cv_results['cv_r2']):.6f} |
 | CV Standard Deviation | {float(np.std(cv_results['fold_mae_scores'])):.6f} |
 | Best Fold MAE | {float(min(cv_results['fold_mae_scores'])):.6f} |
 | Worst Fold MAE | {float(max(cv_results['fold_mae_scores'])):.6f} |

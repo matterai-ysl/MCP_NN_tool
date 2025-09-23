@@ -138,7 +138,7 @@ class NeuralNetworkHTMLReportGenerator:
         # Generate visualization sections
         training_curves_section = self._generate_training_curves_section(model_dir_path) if include_visualizations else ""
         cv_visualization_section = self._generate_cv_visualization_section(model_dir_path, task_type) if include_visualizations else ""
-        hyperparameter_section = self._generate_hyperparameter_optimization_section(model_dir_path)
+        hyperparameter_section = self._generate_hyperparameter_optimization_section(model_dir_path, training_results)
         
         html_template = f"""<!DOCTYPE html>
 <html lang="en">
@@ -496,7 +496,8 @@ class NeuralNetworkHTMLReportGenerator:
         n_trials = summary.get('n_trials', 0)
         cv_folds = summary.get('cv_folds', 0)
         num_epochs = summary.get('num_epochs', 0)
-        algorithm = summary.get('algorithm', 'Unknown')
+        algorithm = summary.get('hyperparameter_optimization_algorithm', summary.get('algorithm', 'Unknown'))
+        loss_function = summary.get('loss_function', 'Unknown')
         
         # Performance metrics
         if training_results.get('task_type') == 'classification':
@@ -535,6 +536,10 @@ class NeuralNetworkHTMLReportGenerator:
                 <div class="metric-card">
                     <div class="metric-value">{algorithm}</div>
                     <div class="metric-label">Optimization Algorithm</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">{loss_function}</div>
+                    <div class="metric-label">Loss Function</div>
                 </div>
             </div>
         </div>"""
@@ -594,24 +599,85 @@ class NeuralNetworkHTMLReportGenerator:
             </div>
         </div>"""
 
-    def _generate_hyperparameter_optimization_section(self, model_dir_path: Path) -> str:
+    def _generate_hyperparameter_optimization_section(self, model_dir_path: Path, training_results: Dict[str, Any] = None) -> str:
         """Generate hyperparameter optimization section."""
+        # Try to get data from training_results first
+        if training_results:
+            best_params = training_results.get('best_parameters', {})
+            training_summary = training_results.get('training_summary', {})
+            algorithm = training_summary.get('hyperparameter_optimization_algorithm', 'Unknown')
+            n_trials = training_summary.get('n_trials', 0)
+            loss_function = training_summary.get('loss_function', 'Unknown')
+
+            if best_params:
+                # Create a summary of the best hyperparameters found
+                best_params_html = """
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">{}</div>
+                        <div class="metric-label">Optimization Algorithm</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{}</div>
+                        <div class="metric-label">Total Trials</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{}</div>
+                        <div class="metric-label">Loss Function</div>
+                    </div>
+                </div>
+
+                <h3>🏆 Best Hyperparameters Found</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>""".format(algorithm, n_trials, loss_function)
+
+                for param, value in best_params.items():
+                    if isinstance(value, (list, tuple)):
+                        value_str = str(value)
+                    elif isinstance(value, float):
+                        value_str = f"{value:.6f}"
+                    else:
+                        value_str = str(value)
+
+                    best_params_html += f"""
+                        <tr>
+                            <td>{param.replace('_', ' ').title()}</td>
+                            <td>{value_str}</td>
+                        </tr>"""
+
+                best_params_html += """
+                    </tbody>
+                </table>"""
+
+                return f"""
+                <div class="report-section">
+                    <h2 class="section-title">🔍 Hyperparameter Optimization</h2>
+                    {best_params_html}
+                </div>"""
+
+        # Fallback to reading from CSV file
         trials_file = model_dir_path / "hyperparameter_optimization_trials.csv"
-        
+
         if not trials_file.exists():
             return """
             <div class="report-section">
                 <h2 class="section-title">🔍 Hyperparameter Optimization</h2>
                 <p>No hyperparameter optimization data available.</p>
             </div>"""
-        
+
         try:
             import pandas as pd
             trials_df = pd.read_csv(trials_file)
-            
+
             # Get best trials
             best_trials = trials_df.nsmallest(5, 'value')[['number', 'value', 'params_hidden_layers', 'params_learning_rate', 'params_dropout_rate']]
-            
+
             table_html = """
             <table class="data-table">
                 <thead>
@@ -624,7 +690,7 @@ class NeuralNetworkHTMLReportGenerator:
                     </tr>
                 </thead>
                 <tbody>"""
-            
+
             for _, row in best_trials.iterrows():
                 table_html += f"""
                     <tr>
@@ -634,18 +700,18 @@ class NeuralNetworkHTMLReportGenerator:
                         <td>{row.get('params_learning_rate', 'N/A')}</td>
                         <td>{row.get('params_dropout_rate', 'N/A')}</td>
                     </tr>"""
-            
+
             table_html += """
                 </tbody>
             </table>"""
-            
+
             return f"""
             <div class="report-section">
                 <h2 class="section-title">🔍 Hyperparameter Optimization</h2>
                 <p>Top 5 performing hyperparameter combinations from {len(trials_df)} trials:</p>
                 {table_html}
             </div>"""
-            
+
         except Exception as e:
             logger.warning(f"Could not load hyperparameter optimization data: {e}")
             return """
@@ -769,14 +835,43 @@ class NeuralNetworkHTMLReportGenerator:
         else:
             # Regression metrics
             best_mae = training_results.get('best_mae', float('inf'))
-            
+            cv_mse = training_results.get('cv_mse', 0)
+            cv_r2 = training_results.get('cv_r2', 0)
+            cv_results = training_results.get('cv_results', {})
+            fold_mae_scores = cv_results.get('fold_mae_scores', []) if cv_results else []
+
+            # Calculate additional statistics if fold scores are available
+            mae_std = np.std(fold_mae_scores) if fold_mae_scores else 0
+            mae_min = min(fold_mae_scores) if fold_mae_scores else 0
+            mae_max = max(fold_mae_scores) if fold_mae_scores else 0
+
             return f"""
             <div class="report-section">
                 <h2 class="section-title">📊 Performance Metrics</h2>
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-value">{best_mae:.6f}</div>
-                        <div class="metric-label">Best MAE</div>
+                        <div class="metric-label">Cross-Validation MAE</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{cv_mse:.6f}</div>
+                        <div class="metric-label">Cross-Validation MSE</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{cv_r2:.6f}</div>
+                        <div class="metric-label">Cross-Validation R²</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{mae_std:.6f}</div>
+                        <div class="metric-label">MAE Std Deviation</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{mae_min:.6f}</div>
+                        <div class="metric-label">Best Fold MAE</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{mae_max:.6f}</div>
+                        <div class="metric-label">Worst Fold MAE</div>
                     </div>
                 </div>
             </div>"""
