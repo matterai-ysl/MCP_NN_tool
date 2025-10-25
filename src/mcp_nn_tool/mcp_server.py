@@ -1257,7 +1257,7 @@ async def list_training_tasks(
         task_list = []
         for task in tasks:
             task_dict = {
-                "task_id": task.task_id,
+                "model_id": task.task_id,
                 "task_type": task.task_type.value,
                 "status": task.status.value,
                 "progress": task.progress,
