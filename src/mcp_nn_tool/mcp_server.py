@@ -329,7 +329,7 @@ async def train_neural_network_regression(
     """Submit a neural network regression training task to the queue.
     
     This function submits the training task to an asynchronous queue and returns 
-    immediately with a task ID. Use get_training_results() to check progress and get results.
+    immediately with a model ID. Use get_training_results() to check progress and get results.
     
     Args:
         training_file: Path to training data file (CSV/Excel)
@@ -366,7 +366,7 @@ async def train_neural_network_regression(
         
         # Submit task to queue
         task_queue = get_task_queue(user_models_dir)
-        task_id = await task_queue.submit_task(
+        model_id = await task_queue.submit_task(
             task_type=TaskType.REGRESSION_TRAINING,
             task_function=_train_neural_network_regression_impl,
             task_args=(),
@@ -386,11 +386,11 @@ async def train_neural_network_regression(
         
         return {
             "status": "submitted",
-            "task_id": task_id,
+            "model_id": model_id,
             "message": "Training task submitted to queue",
             "estimated_duration": estimated_duration,
             "parameters": task_parameters,
-            "next_steps": "Use get_training_results(task_id) to check progress and get results when complete"
+            "next_steps": "Use get_training_results(model_id) to check progress and get results when complete"
         }
         
     except Exception as e:
@@ -408,12 +408,12 @@ async def predict_from_file_neural_network(
     generate_experiment_report: bool = True,
     ctx: Context = None, # type: ignore
 ) -> dict:
-    """Make predictions on data from a file (supports both regression and classification).
+    """Make predictions on data from a file using a trained neural network model (supports both regression and classification).
     
     Automatically detects model type from model metadata and calls the appropriate prediction method.
     
     Args:
-        model_id: ID of the trained model to use for prediction
+        model_id: ID of the trained neural network model to use for prediction
         prediction_file: Path to CSV/Excel file containing prediction data
         generate_experiment_report: Whether to generate detailed experiment report (default: True)
         
@@ -527,9 +527,9 @@ async def predict_from_values_neural_network(
     model_id: str,
     feature_values: Union[list, List[list]],
     generate_experiment_report: bool = True,
-    ctx: Context = None,
+    ctx: Context = None, # type: ignore
 ) -> dict:
-    """Make prediction from feature values (supports both regression and classification).
+    """Make prediction from feature values using a trained neural network model (supports both regression and classification).
     
     Automatically detects model type from model metadata and calls the appropriate prediction method.
     
@@ -538,7 +538,7 @@ async def predict_from_values_neural_network(
     - Batch: feature_values = [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]
     
     Args:
-        model_id: ID of the trained model to use for prediction
+        model_id: ID of the trained neural network model to use for prediction
         feature_values: List of numerical feature values (1D) or list of feature value lists (2D) for batch prediction
         generate_experiment_report: Whether to generate detailed experiment report (default: True)
         
@@ -638,7 +638,7 @@ async def predict_from_values_neural_network(
 
 
 @mcp.tool()
-async def list_neural_network_models(ctx: Context = None) -> Dict[str, Any]:
+async def list_neural_network_models(ctx: Context = None) -> Dict[str, Any]: # type: ignore
     """List all saved neural network models.
     
     Returns:
@@ -671,11 +671,11 @@ async def list_neural_network_models(ctx: Context = None) -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def get_neural_network_model_info(model_id: str, ctx: Context = None) -> Dict[str, Any]:
-    """Get detailed information about a specific model.
+async def get_neural_network_model_info(model_id: str, ctx: Context = None) -> Dict[str, Any]: # type: ignore
+    """Get detailed information about a specific neural network model.
     
     Args:
-        model_id: ID of the model
+        model_id: ID of the neural network model
         
     Returns:
         Dictionary containing detailed model metadata
@@ -718,11 +718,11 @@ async def get_neural_network_model_info(model_id: str, ctx: Context = None) -> D
 
 
 @mcp.tool()
-async def delete_neural_network_model(model_id: str, ctx: Context = None) -> Dict[str, Any]:
+async def delete_neural_network_model(model_id: str, ctx: Context = None) -> Dict[str, Any]: # type: ignore
     """Delete a saved neural network model and its folder.
     
     Args:
-        model_id: ID of the model to delete
+        model_id: ID of the neural network model to delete
         
     Returns:
         Dictionary containing deletion status
@@ -983,7 +983,7 @@ async def train_classification_model_neural_network(
     cv_folds: int = 5,
     num_epochs: int = 300,
     algorithm: str = "TPE",
-    ctx: Context = None,
+    ctx: Context = None, # type: ignore
 ) -> Dict[str, Any]:
     """Submit a classification neural network training task to the queue.
     
@@ -1001,7 +1001,7 @@ async def train_classification_model_neural_network(
         algorithm: Optimization algorithm - "TPE" or "GP" (default: "TPE")
         
     Returns:
-        Dictionary containing task ID and submission status
+        Dictionary containing model ID and submission status
     """
     try:
         # Get user-specific models directory
@@ -1024,7 +1024,7 @@ async def train_classification_model_neural_network(
         
         # Submit task to queue
         task_queue = get_task_queue(user_models_dir)
-        task_id = await task_queue.submit_task(
+        model_id = await task_queue.submit_task(
             task_type=TaskType.CLASSIFICATION_TRAINING,
             task_function=_train_classification_model_neural_network_impl,
             task_args=(),
@@ -1042,11 +1042,11 @@ async def train_classification_model_neural_network(
         
         return {
             "status": "submitted",
-            "task_id": task_id,
+            "model_id": model_id,
             "message": "Classification training task submitted to queue",
             "estimated_duration": estimated_duration,
             "parameters": task_parameters,
-            "next_steps": "Use get_training_results(task_id) to check progress and get results when complete"
+            "next_steps": "Use get_training_results(model_id) to check progress and get results when complete"
         }
         
     except Exception as e:
@@ -1057,98 +1057,98 @@ async def train_classification_model_neural_network(
         }
 
 
-@mcp.tool()
-async def generate_html_model_report(
-    model_id: str,
-    report_type: str = "training",
-    ctx: Context = None,
-) -> Dict[str, Any]:
-    """Generate an HTML report for an existing trained model.
+# @mcp.tool()
+# async def generate_html_model_report(
+#     model_id: str,
+#     report_type: str = "training",
+#     ctx: Context = None, # type: ignore
+# ) -> Dict[str, Any]:
+#     """Generate an HTML report for an existing trained model.
     
-    Args:
-        model_id: ID of the trained model
-        report_type: Type of report to generate ("training" or "summary")
+#     Args:
+#         model_id: ID of the trained model
+#         report_type: Type of report to generate ("training" or "summary")
         
-    Returns:
-        Dictionary containing HTML report path and generation status
-    """
-    try:
-        # Get user-specific models directory and create user model manager
-        user_id = get_user_id(ctx)
-        user_models_dir = get_user_models_dir(user_id)
-        user_model_manager = ModelManager(user_models_dir)
+#     Returns:
+#         Dictionary containing HTML report path and generation status
+#     """
+#     try:
+#         # Get user-specific models directory and create user model manager
+#         user_id = get_user_id(ctx)
+#         user_models_dir = get_user_models_dir(user_id)
+#         user_model_manager = ModelManager(user_models_dir)
 
-        # Load model components
-        model_components = await user_model_manager.load_model(model_id)
-        metadata = model_components['metadata']
-        model_folder = model_components['model_folder']
+#         # Load model components
+#         model_components = await user_model_manager.load_model(model_id)
+#         metadata = model_components['metadata']
+#         model_folder = model_components['model_folder']
         
-        # Create HTML generator
-        html_generator = NeuralNetworkHTMLReportGenerator(output_dir=str(model_folder))
+#         # Create HTML generator
+#         html_generator = NeuralNetworkHTMLReportGenerator(output_dir=str(model_folder))
         
-        if report_type == "training":
-            # Generate training report from metadata
-            training_results = {
-                "status": "success",
-                "model_id": model_id,
-                "model_folder": model_folder,
-                "best_parameters": metadata.get('best_parameters', {}),
-                "feature_names": metadata.get('feature_names', []),
-                "target_names": metadata.get('target_names', []),
-                "task_type": metadata.get('task_type', 'regression'),
-                "training_summary": {
-                    "cv_folds": metadata.get('cv_folds', 5),
-                    "training_epochs": metadata.get('training_epochs', 500),
-                    "total_time": 0  # Not available for existing models
-                }
-            }
+#         if report_type == "training":
+#             # Generate training report from metadata
+#             training_results = {
+#                 "status": "success",
+#                 "model_id": model_id,
+#                 "model_folder": model_folder,
+#                 "best_parameters": metadata.get('best_parameters', {}),
+#                 "feature_names": metadata.get('feature_names', []),
+#                 "target_names": metadata.get('target_names', []),
+#                 "task_type": metadata.get('task_type', 'regression'),
+#                 "training_summary": {
+#                     "cv_folds": metadata.get('cv_folds', 5),
+#                     "training_epochs": metadata.get('training_epochs', 500),
+#                     "total_time": 0  # Not available for existing models
+#                 }
+#             }
             
-            # Add performance metrics
-            if metadata.get('task_type') == 'classification':
-                training_results["best_accuracy"] = metadata.get('best_accuracy', 0)
-            else:
-                training_results["best_mae"] = metadata.get('best_mae', 0)
+#             # Add performance metrics
+#             if metadata.get('task_type') == 'classification':
+#                 training_results["best_accuracy"] = metadata.get('best_accuracy', 0)
+#             else:
+#                 training_results["best_mae"] = metadata.get('best_mae', 0)
             
-            html_report_path = html_generator.generate_training_report(
-                model_directory=model_folder,
-                training_results=training_results,
-                include_visualizations=True
-            )
-        else:
-            return {
-                "status": "error",
-                "message": f"Unsupported report type: {report_type}. Supported types: 'training'"
-            }
+#             html_report_path = html_generator.generate_training_report(
+#                 model_directory=model_folder,
+#                 training_results=training_results,
+#                 include_visualizations=True
+#             )
+#         else:
+#             return {
+#                 "status": "error",
+#                 "message": f"Unsupported report type: {report_type}. Supported types: 'training'"
+#             }
         
-        html_report_url = get_download_url(html_report_path)
+#         html_report_url = get_download_url(html_report_path)
         
-        return {
-            "status": "success",
-            "model_id": model_id,
-            "report_type": report_type,
-            "html_report_path": html_report_url,
-            "message": f"HTML {report_type} report generated successfully",
-            "local_path": html_report_path
-        }
+#         return {
+#             "status": "success",
+#             "model_id": model_id,
+#             "report_type": report_type,
+#             "html_report_path": html_report_url,
+#             "message": f"HTML {report_type} report generated successfully",
+#             "local_path": html_report_path
+#         }
         
-    except Exception as e:
-        logger.error(f"Error generating HTML model report: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Failed to generate HTML model report: {str(e)}"
-        }
+#     except Exception as e:
+#         logger.error(f"Error generating HTML model report: {str(e)}")
+#         return {
+#             "status": "error",
+#             "message": f"Failed to generate HTML model report: {str(e)}"
+#         }
 
 
 # ================== TASK QUEUE MANAGEMENT TOOLS ==================
 
 @mcp.tool()
-async def get_training_results(task_id: str, ctx: Context = None) -> Dict[str, Any]:
-    """Get training results and task status for a specific task.
+async def get_training_results(model_id: str, ctx: Context = None) -> Dict[str, Any]: # type: ignore
+    """Get neural network training results and task status for a specific task.
     
     This unified tool provides both task status and training results in one call.
     
     Args:
-        task_id: ID of the training task
+        model_id: ID of the neural network model
         
     Returns:
         Dictionary containing task status, progress, and results if completed
@@ -1158,16 +1158,16 @@ async def get_training_results(task_id: str, ctx: Context = None) -> Dict[str, A
         user_id = get_user_id(ctx)
         user_models_dir = get_user_models_dir(user_id)
         task_queue = get_task_queue(user_models_dir)
-        task_info = task_queue.get_task_status(task_id)
+        task_info = task_queue.get_task_status(model_id)
         
         if not task_info:
             return {
                 "status": "error",
-                "message": f"Task {task_id} not found"
+                "message": f"Task {model_id} not found"
             }
         
         result = {
-            "task_id": task_id,
+            "model_id": model_id,
             "task_type": task_info.task_type.value,
             "status": task_info.status.value,
             "progress": task_info.progress,
@@ -1207,12 +1207,12 @@ async def list_training_tasks(
     status_filter: Optional[str] = None,
     task_type_filter: Optional[str] = None,
     limit: int = 20,
-    ctx: Context = None,
+    ctx: Context = None, # type: ignore
 ) -> Dict[str, Any]:
-    """List all training tasks with their status.
+    """List all training neural network tasks with their status.
     
     Args:
-        status_filter: Filter by task status (pending, running, completed, failed, cancelled)
+        status_filter: Filter by neural network task status (pending, running, completed, failed, cancelled)
         task_type_filter: Filter by task type (regression_training, classification_training, prediction)
         limit: Maximum number of tasks to return (default: 20)
         
@@ -1300,8 +1300,8 @@ async def list_training_tasks(
 
 
 @mcp.tool()
-async def get_queue_status(ctx: Context = None) -> Dict[str, Any]:
-    """Get overall training queue status and statistics.
+async def get_nn_queue_status(ctx: Context = None) -> Dict[str, Any]: # type: ignore
+    """Get overall training neural network queue status and statistics.
     
     Returns:
         Dictionary containing queue status, task counts, and system information
@@ -1334,14 +1334,14 @@ async def get_queue_status(ctx: Context = None) -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def cancel_training_task(task_id: str, ctx: Context = None) -> Dict[str, Any]:
-    """Cancel a training task by task ID.
+async def cancel_nn_training_task(model_id: str, ctx: Context = None) -> Dict[str, Any]: # type: ignore
+    """Cancel a neural network training task by model ID.
     
     Can only cancel tasks that are pending or currently running.
     Completed, failed, or already cancelled tasks cannot be cancelled.
-    
+
     Args:
-        task_id: ID of the task to cancel
+        model_id: ID of the neural network model to cancel
         
     Returns:
         Dictionary containing cancellation status
@@ -1353,27 +1353,27 @@ async def cancel_training_task(task_id: str, ctx: Context = None) -> Dict[str, A
         task_queue = get_task_queue(user_models_dir)
         
         # Check if task exists
-        task_info = task_queue.get_task_status(task_id)
+        task_info = task_queue.get_task_status(model_id)
         if not task_info:
             return {
                 "status": "error",
-                "message": f"Task {task_id} not found"
+                "message": f"Task {model_id} not found"
             }
         
         # Attempt to cancel the task
-        cancelled = await task_queue.cancel_task(task_id)
+        cancelled = await task_queue.cancel_task(model_id)
         
         if cancelled:
             return {
                 "status": "success",
-                "task_id": task_id,
+                "model_id": model_id,
                 "message": "Task cancelled successfully",
                 "previous_status": task_info.status.value
             }
         else:
             return {
                 "status": "error",
-                "task_id": task_id,
+                "model_id": model_id,
                 "message": f"Cannot cancel task with status: {task_info.status.value}",
                 "current_status": task_info.status.value
             }
@@ -1386,149 +1386,149 @@ async def cancel_training_task(task_id: str, ctx: Context = None) -> Dict[str, A
         }
 
 
-@mcp.tool()
-async def test_url_functionality(
-    test_url: str = "http://47.99.180.80/file/uploads/SLM_2.xls",
-    ctx: Optional[Context] = None
-) -> Dict[str, Any]:
-    """Test URL data loading functionality in MCP environment.
+# @mcp.tool()
+# async def test_url_functionality(
+#     test_url: str = "http://47.99.180.80/file/uploads/SLM_2.xls",
+#     ctx: Optional[Context] = None
+# ) -> Dict[str, Any]:
+#     """Test URL data loading functionality in MCP environment.
 
-    This function directly tests URL loading without going through training workflow
-    to isolate and debug HTTP 404 issues in MCP server environment.
+#     This function directly tests URL loading without going through training workflow
+#     to isolate and debug HTTP 404 issues in MCP server environment.
 
-    Args:
-        test_url: URL to test (default: http://47.99.180.80/file/uploads/SLM_2.xls)
-        ctx: MCP context (optional)
+#     Args:
+#         test_url: URL to test (default: http://47.99.180.80/file/uploads/SLM_2.xls)
+#         ctx: MCP context (optional)
 
-    Returns:
-        Dictionary with test results and diagnostics
-    """
-    try:
-        logger.info(f"Testing URL functionality in MCP environment: {test_url}")
+#     Returns:
+#         Dictionary with test results and diagnostics
+#     """
+#     try:
+#         logger.info(f"Testing URL functionality in MCP environment: {test_url}")
 
-        # Get user context
-        user_id = get_user_id(ctx)
-        user_models_dir = get_user_models_dir(user_id)
+#         # Get user context
+#         user_id = get_user_id(ctx)
+#         user_models_dir = get_user_models_dir(user_id)
 
-        test_results = {
-            "status": "running",
-            "test_url": test_url,
-            "user_id": user_id,
-            "user_models_dir": user_models_dir,
-            "tests": {},
-            "environment_info": {}
-        }
+#         test_results = {
+#             "status": "running",
+#             "test_url": test_url,
+#             "user_id": user_id,
+#             "user_models_dir": user_models_dir,
+#             "tests": {},
+#             "environment_info": {}
+#         }
 
-        # Test 1: Direct URL ping/accessibility
-        try:
-            import requests
-            response = requests.head(test_url, timeout=10)
-            test_results["tests"]["url_accessibility"] = {
-                "status": "success",
-                "http_status": response.status_code,
-                "headers": dict(response.headers),
-                "message": f"URL accessible, HTTP {response.status_code}"
-            }
-        except Exception as e:
-            test_results["tests"]["url_accessibility"] = {
-                "status": "failed",
-                "error": str(e),
-                "message": "URL not accessible via requests.head()"
-            }
+#         # Test 1: Direct URL ping/accessibility
+#         try:
+#             import requests
+#             response = requests.head(test_url, timeout=10)
+#             test_results["tests"]["url_accessibility"] = {
+#                 "status": "success",
+#                 "http_status": response.status_code,
+#                 "headers": dict(response.headers),
+#                 "message": f"URL accessible, HTTP {response.status_code}"
+#             }
+#         except Exception as e:
+#             test_results["tests"]["url_accessibility"] = {
+#                 "status": "failed",
+#                 "error": str(e),
+#                 "message": "URL not accessible via requests.head()"
+#             }
 
-        # Test 2: Direct pandas read
-        try:
-            import pandas as pd
-            data = pd.read_excel(test_url)
-            test_results["tests"]["direct_pandas"] = {
-                "status": "success",
-                "data_shape": data.shape,
-                "columns": list(data.columns),
-                "message": f"Direct pandas.read_excel() successful, shape: {data.shape}"
-            }
-        except Exception as e:
-            test_results["tests"]["direct_pandas"] = {
-                "status": "failed",
-                "error": str(e),
-                "message": "Direct pandas.read_excel() failed"
-            }
+#         # Test 2: Direct pandas read
+#         try:
+#             import pandas as pd
+#             data = pd.read_excel(test_url)
+#             test_results["tests"]["direct_pandas"] = {
+#                 "status": "success",
+#                 "data_shape": data.shape,
+#                 "columns": list(data.columns),
+#                 "message": f"Direct pandas.read_excel() successful, shape: {data.shape}"
+#             }
+#         except Exception as e:
+#             test_results["tests"]["direct_pandas"] = {
+#                 "status": "failed",
+#                 "error": str(e),
+#                 "message": "Direct pandas.read_excel() failed"
+#             }
 
-        # Test 3: Our custom read_data_file function
-        try:
-            data = await read_data_file(test_url, max_retries=3, retry_delay=1.0)
-            test_results["tests"]["custom_read_data_file"] = {
-                "status": "success",
-                "data_shape": data.shape,
-                "columns": list(data.columns),
-                "message": f"Custom read_data_file() successful, shape: {data.shape}"
-            }
-        except Exception as e:
-            test_results["tests"]["custom_read_data_file"] = {
-                "status": "failed",
-                "error": str(e),
-                "message": "Custom read_data_file() failed"
-            }
+#         # Test 3: Our custom read_data_file function
+#         try:
+#             data = await read_data_file(test_url, max_retries=3, retry_delay=1.0)
+#             test_results["tests"]["custom_read_data_file"] = {
+#                 "status": "success",
+#                 "data_shape": data.shape,
+#                 "columns": list(data.columns),
+#                 "message": f"Custom read_data_file() successful, shape: {data.shape}"
+#             }
+#         except Exception as e:
+#             test_results["tests"]["custom_read_data_file"] = {
+#                 "status": "failed",
+#                 "error": str(e),
+#                 "message": "Custom read_data_file() failed"
+#             }
 
-        # Test 4: Threading context test
-        try:
-            import concurrent.futures
-            import threading
+#         # Test 4: Threading context test
+#         try:
+#             import concurrent.futures
+#             import threading
 
-            def load_in_thread():
-                return pd.read_excel(test_url)
+#             def load_in_thread():
+#                 return pd.read_excel(test_url)
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(load_in_thread)
-                thread_data = future.result(timeout=30)
+#             with concurrent.futures.ThreadPoolExecutor() as executor:
+#                 future = executor.submit(load_in_thread)
+#                 thread_data = future.result(timeout=30)
 
-            test_results["tests"]["threading_context"] = {
-                "status": "success",
-                "data_shape": thread_data.shape,
-                "thread_id": threading.get_ident(),
-                "message": f"Threading context successful, shape: {thread_data.shape}"
-            }
-        except Exception as e:
-            test_results["tests"]["threading_context"] = {
-                "status": "failed",
-                "error": str(e),
-                "message": "Threading context failed"
-            }
+#             test_results["tests"]["threading_context"] = {
+#                 "status": "success",
+#                 "data_shape": thread_data.shape,
+#                 "thread_id": threading.get_ident(),
+#                 "message": f"Threading context successful, shape: {thread_data.shape}"
+#             }
+#         except Exception as e:
+#             test_results["tests"]["threading_context"] = {
+#                 "status": "failed",
+#                 "error": str(e),
+#                 "message": "Threading context failed"
+#             }
 
-        # Environment diagnostics
-        test_results["environment_info"] = {
-            "python_version": sys.version,
-            "working_directory": os.getcwd(),
-            "user_agent": getattr(requests.utils, 'default_user_agent', lambda: 'unknown')(),
-            "ssl_context_available": hasattr(__import__('ssl'), 'create_default_context'),
-            "pandas_version": pd.__version__,
-            "current_time": time.time()
-        }
+#         # Environment diagnostics
+#         test_results["environment_info"] = {
+#             "python_version": sys.version,
+#             "working_directory": os.getcwd(),
+#             "user_agent": getattr(requests.utils, 'default_user_agent', lambda: 'unknown')(),
+#             "ssl_context_available": hasattr(__import__('ssl'), 'create_default_context'),
+#             "pandas_version": pd.__version__,
+#             "current_time": time.time()
+#         }
 
-        # Summary
-        successful_tests = sum(1 for test in test_results["tests"].values() if test["status"] == "success")
-        total_tests = len(test_results["tests"])
+#         # Summary
+#         successful_tests = sum(1 for test in test_results["tests"].values() if test["status"] == "success")
+#         total_tests = len(test_results["tests"])
 
-        test_results["status"] = "completed"
-        test_results["summary"] = {
-            "successful_tests": successful_tests,
-            "total_tests": total_tests,
-            "success_rate": f"{successful_tests}/{total_tests}",
-            "overall_result": "success" if successful_tests == total_tests else "partial_failure"
-        }
+#         test_results["status"] = "completed"
+#         test_results["summary"] = {
+#             "successful_tests": successful_tests,
+#             "total_tests": total_tests,
+#             "success_rate": f"{successful_tests}/{total_tests}",
+#             "overall_result": "success" if successful_tests == total_tests else "partial_failure"
+#         }
 
-        logger.info(f"URL functionality test completed: {successful_tests}/{total_tests} tests passed")
-        return test_results
+#         logger.info(f"URL functionality test completed: {successful_tests}/{total_tests} tests passed")
+#         return test_results
 
-    except Exception as e:
-        logger.error(f"URL functionality test failed: {str(e)}")
-        import traceback
-        return {
-            "status": "error",
-            "test_url": test_url,
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-            "message": "URL functionality test encountered an unexpected error"
-        }
+#     except Exception as e:
+#         logger.error(f"URL functionality test failed: {str(e)}")
+#         import traceback
+#         return {
+#             "status": "error",
+#             "test_url": test_url,
+#             "error": str(e),
+#             "traceback": traceback.format_exc(),
+#             "message": "URL functionality test encountered an unexpected error"
+#         }
 
 
 class NeuralNetworkMCPServer:
