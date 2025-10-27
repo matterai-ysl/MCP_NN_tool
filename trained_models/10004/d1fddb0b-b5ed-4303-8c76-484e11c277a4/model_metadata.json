@@ -1,0 +1,26 @@
+{
+  "model_id": "d1fddb0b-b5ed-4303-8c76-484e11c277a4",
+  "created_at": "2025-10-27T16:33:33.317231",
+  "task_type": "regression",
+  "feature_number": 4,
+  "target_number": 1,
+  "feature_names": [
+    "layer_thickness",
+    "hatch_distance",
+    "laser_power",
+    "laser_velocity"
+  ],
+  "target_names": [
+    "relative_density"
+  ],
+  "best_params": {
+    "lr": 0.000227508826655514,
+    "batch_size": 112,
+    "drop_out": 0.01230867472231958,
+    "unit": 128,
+    "layber_number": 5
+  },
+  "best_mae": 0.13053593039512634,
+  "cv_folds": 5,
+  "training_epochs": 500
+}

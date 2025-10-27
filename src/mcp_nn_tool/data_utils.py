@@ -46,7 +46,7 @@ def _is_url(path: str) -> bool:
     return path.startswith(('http://', 'https://'))
 
 
-async def read_data_file(file_path: str, max_retries: int = 5, retry_delay: float = 2.0) -> pd.DataFrame:
+async def read_data_file(file_path: str, max_retries: int = 5, retry_delay: float = 2.0) -> pd.DataFrame: # type: ignore
     """Read data from various file formats including URLs with retry mechanism.
 
     Args:
@@ -226,14 +226,15 @@ async def preprocess_prediction_input(
     
     # Apply feature scaling
     scaled_data = feature_scaler.transform(input_array)
-    return scaled_data
+    return scaled_data # type: ignore
 
 
 async def inverse_transform_predictions(
     predictions: np.ndarray,
     features: np.ndarray,
     full_scaler: preprocessing.StandardScaler,
-    target_names: List[str]
+    target_names: List[str],
+    feature_names: List[str]=None # type: ignore
 ) -> pd.DataFrame:
     """Apply inverse transformation to predictions and features.
     
@@ -257,11 +258,12 @@ async def inverse_transform_predictions(
     inverse_transformed = full_scaler.inverse_transform(combined)
     
     # Create DataFrame with proper column names
-    feature_names = [f"feature_{i}" for i in range(features.shape[1])]
+    if feature_names is None:
+        feature_names = [f"feature_{i}" for i in range(features.shape[1])]
     prediction_names = [f"prediction_{name}" for name in target_names]
     columns = feature_names + prediction_names
     
-    result_df = pd.DataFrame(inverse_transformed, columns=columns)
+    result_df = pd.DataFrame(inverse_transformed, columns=columns) # type: ignore
     return result_df
 
 
@@ -287,7 +289,7 @@ def validate_data_format(data: pd.DataFrame, target_columns: int = 1, min_featur
         raise ValueError(f"Data must have at least {total_required_columns} columns "
                         f"({min_features} features + {target_columns} targets)")
     
-    if data.isnull().any().any():
+    if data.isnull().any().any(): # type: ignore
         raise ValueError("Data contains null values")
     
     return True
@@ -341,7 +343,7 @@ def encode_classification_labels(targets: pd.Series) -> Tuple[np.ndarray, Dict[s
         # Use LabelEncoder for string labels
         label_encoder = LabelEncoder()
         encoded_targets = label_encoder.fit_transform(targets)
-        classes = label_encoder.classes_.tolist()
+        classes = label_encoder.classes_.tolist() # type: ignore
         
         print(f"Detected string labels: {classes}")
         print(f"Encoded as: {list(range(len(classes)))}")
@@ -383,7 +385,7 @@ def encode_classification_labels(targets: pd.Series) -> Tuple[np.ndarray, Dict[s
     print(f"Classification task detected: {num_classes} classes")
     print(f"Class mapping: {class_to_idx}")
     
-    return encoded_targets, label_info, num_classes
+    return encoded_targets, label_info, num_classes # type: ignore
 
 
 async def preprocess_classification_data(

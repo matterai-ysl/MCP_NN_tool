@@ -487,7 +487,7 @@ async def predict_from_file_neural_network(
                 model_components["model_folder"], # type: ignore
                 generate_experiment_report=generate_experiment_report
             )
-            
+            basic_csv_path = get_download_url(basic_csv_path) # type: ignore
             # Format response for classification
             response = {
                 'task_type': 'classification',
@@ -509,7 +509,7 @@ async def predict_from_file_neural_network(
                         include_visualizations=True
                     )
                     html_report_url = get_download_url(html_report_path)
-                    response['html_prediction_report'] = html_report_url
+                    response['prediction_report_html_path'] = html_report_url
                     logger.info(f"HTML prediction report generated: {html_report_path}")
                 except Exception as e:
                     logger.warning(f"Failed to generate HTML prediction report: {str(e)}")
@@ -519,10 +519,12 @@ async def predict_from_file_neural_network(
             result_df, raw_predictions, experiment_report_path, basic_csv_path = await prediction.predict_from_file(
                 model_components, 
                 prediction_file,
-                generate_experiment_report=generate_experiment_report
+                generate_experiment_report=generate_experiment_report,
+                user_id=user_id # type: ignore
             )
             experiment_realve_path = get_download_url(experiment_report_path) # type: ignore
             # Format response for regression
+            basic_csv_path = get_download_url(basic_csv_path) # type: ignore
             response = {
                 'task_type': 'regression',
                 'model_id': model_id,
@@ -539,7 +541,7 @@ async def predict_from_file_neural_network(
                 model_base_path = os.path.join("trained_model", model_id)
                 predictions_dir = os.path.join(model_base_path, "predictions")
                 predictions_dir_realve_path = get_download_url(predictions_dir) # type: ignore
-                response['output_directory'] = predictions_dir_realve_path
+                # response['output_directory'] = predictions_dir_realve_path
                 response['prediction_details'] = f"Prediction task completed.More prediction details, such as the prediction results, can be found in the {predictions_dir}. The **experiment_report** at {experiment_report_path} provides comprehensive records and analysis for reproducibility and academic reference."
                 
                 # Generate HTML prediction report for regression
@@ -552,7 +554,7 @@ async def predict_from_file_neural_network(
                             include_visualizations=True
                         )
                         html_report_url = get_download_url(html_report_path)
-                        response['html_prediction_report'] = html_report_url
+                        response['prediction_report_html_path'] = html_report_url
                         logger.info(f"HTML regression prediction report generated: {html_report_path}")
                     except Exception as e:
                         logger.warning(f"Failed to generate HTML regression prediction report: {str(e)}")
@@ -596,6 +598,7 @@ async def predict_from_values_neural_network(
     try:
         # Get user-specific models directory and create user model manager
         user_id = get_user_id(ctx)
+        # user_id = "10004"
         user_models_dir = get_user_models_dir(user_id)
         user_model_manager = ModelManager(user_models_dir)
 
@@ -612,7 +615,7 @@ async def predict_from_values_neural_network(
                 model_components["model_folder"],
                 generate_experiment_report=generate_experiment_report
             )
-            
+            basic_csv_path = get_download_url(basic_csv_path) # type: ignore
             # Format response for classification
             response = {
                 'task_type': 'classification',
@@ -642,9 +645,10 @@ async def predict_from_values_neural_network(
             results, experiment_report_path, basic_csv_path = await prediction.predict_from_values(
                 model_components,
                 feature_values,
-                generate_experiment_report=generate_experiment_report
+                generate_experiment_report=generate_experiment_report,
+                user_id=user_id
             )
-            
+            basic_csv_path = get_download_url(basic_csv_path) # type: ignore
             # Format response for regression
             response = {
                 'task_type': 'regression',
@@ -654,8 +658,8 @@ async def predict_from_values_neural_network(
                 'basic_csv_path': basic_csv_path
             }
             
-            if 'experiment_details' in results:
-                response['output_directory'] = results['experiment_details']['output_directory']
+            # if 'experiment_details' in results:
+            #     response['output_directory'] = results['experiment_details']['output_directory']
             
             # Generate HTML prediction report for regression values
             if generate_experiment_report:
@@ -666,15 +670,15 @@ async def predict_from_values_neural_network(
                         model_info=model_components['metadata'],
                         include_visualizations=True
                     )
-                    html_report_url = get_download_url(html_report_path)
-                    response['html_prediction_report'] = html_report_url
+                    html_report_url = get_static_url(html_report_path)
+                    response['prediction_report_html_path'] = html_report_url
                     logger.info(f"HTML regression values prediction report generated: {html_report_path}")
                 except Exception as e:
                     logger.warning(f"Failed to generate HTML regression values prediction report: {str(e)}")
         
         # Add experiment report path if available
         if experiment_report_path:
-            experiment_report_realve_path = get_download_url(experiment_report_path) # type: ignore
+            experiment_report_realve_path = get_static_url(experiment_report_path) # type: ignore
             response['experiment_report_path'] = experiment_report_realve_path
 
         logger.info(f"Prediction completed for {task_type} model {model_id}")
@@ -1619,6 +1623,7 @@ class NeuralNetworkMCPServer:
 
 # Factory function for creating the server
 def create_neural_network_server(models_dir: str = "./trained_model") -> NeuralNetworkMCPServer:
+
     """Create a Neural Network MCP Server instance.
     
     Args:
@@ -1628,3 +1633,18 @@ def create_neural_network_server(models_dir: str = "./trained_model") -> NeuralN
         Configured NeuralNetworkMCPServer instance
     """
     return NeuralNetworkMCPServer(models_dir)
+
+
+async def test_prediction_response():
+    
+    result = await predict_from_values_neural_network(
+        model_id="d1fddb0b-b5ed-4303-8c76-484e11c277a4",
+        feature_values=[35,80,130,800],
+        generate_experiment_report=True
+    )
+
+    return result
+
+if __name__ == "__main__":
+    result = asyncio.run(test_prediction_response())
+    print(result)

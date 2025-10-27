@@ -1,0 +1,64 @@
+{
+  "experiment_name": "SingleValue_20251027_212529",
+  "timestamp": "2025-10-27T21:25:29.954331",
+  "model_id": "d3d7d308-c8e4-4efd-8ce8-4ca4123c5582",
+  "input_type": "feature_values",
+  "prediction_file": "Feature Values (Manual Input - Single)",
+  "input_values": [
+    35,
+    80,
+    130,
+    800
+  ],
+  "feature_names": [
+    "layer_thickness",
+    "hatch_distance",
+    "laser_power",
+    "laser_velocity"
+  ],
+  "target_names": [
+    "relative_density"
+  ],
+  "num_samples": 1,
+  "feature_number": 4,
+  "target_number": 1,
+  "prediction_statistics": {
+    "ensemble_prediction": [
+      0.9158946871757507
+    ],
+    "individual_predictions": [
+      [
+        0.8976647257804871
+      ],
+      [
+        0.9255666136741638
+      ],
+      [
+        0.9251384735107422
+      ],
+      [
+        0.9477559328079224
+      ],
+      [
+        0.8833482265472412
+      ]
+    ],
+    "num_models": 5,
+    "target_names": [
+      "relative_density"
+    ],
+    "prediction_std": 0.02274087257683277,
+    "confidence_interval_95": [
+      0.8713225769251585,
+      0.960466797426343
+    ],
+    "min_prediction": 0.8833482265472412,
+    "max_prediction": 0.9477559328079224
+  },
+  "files_generated": {
+    "scaled_data": "SingleValue_20251027_212529_scaled.csv",
+    "original_data": "SingleValue_20251027_212529_original.csv",
+    "detailed_results": "SingleValue_20251027_212529_detailed.csv",
+    "experiment_report": "SingleValue_20251027_212529_report.md"
+  }
+}

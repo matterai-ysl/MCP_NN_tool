@@ -79,7 +79,8 @@ async def predict_with_ensemble(
 async def predict_from_file(
     model_components: Dict[str, Any],
     prediction_file: str,
-    generate_experiment_report: bool = False
+    generate_experiment_report: bool = False,
+    user_id: str = "default"
 ) -> Tuple[pd.DataFrame, np.ndarray, Optional[str], str]:
     """Make predictions on data from a file with optional experiment reporting.
     
@@ -114,12 +115,12 @@ async def predict_from_file(
     
     # Apply inverse transformation
     result_df = await inverse_transform_predictions(
-        predictions, preprocessed_data, full_scaler, metadata['target_names']
+        predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
     )
     
     # Always save basic prediction results to model folder (even without experiment report)
     model_id = metadata['model_id']
-    model_base_path = os.path.join("trained_model", model_id)
+    model_base_path = os.path.join("trained_models", user_id, model_id)
     predictions_dir = os.path.join(model_base_path, "predictions")
     os.makedirs(predictions_dir, exist_ok=True)
     
@@ -129,7 +130,7 @@ async def predict_from_file(
     
     # Get original scale data for basic saving
     original_scale_df = await inverse_transform_predictions(
-        predictions, preprocessed_data, full_scaler, metadata['target_names']
+        predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
     )
     original_features = original_scale_df.iloc[:, :expected_features].values
     original_predictions = original_scale_df.iloc[:, expected_features:].values
@@ -161,7 +162,7 @@ async def predict_from_file(
     if generate_experiment_report:
         # Get model folder path from model_id
         model_id = metadata['model_id']
-        model_base_path = os.path.join("trained_model", model_id)
+        model_base_path = os.path.join("trained_models", user_id, model_id)
         predictions_dir = os.path.join(model_base_path, "predictions")
         
         # Create predictions directory if it doesn't exist
@@ -182,7 +183,7 @@ async def predict_from_file(
         
         # Apply inverse transformation to get original scale features and predictions
         original_scale_df = await inverse_transform_predictions(
-            ensemble_predictions, preprocessed_data, full_scaler, metadata['target_names']
+            ensemble_predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
         )
         
         # Extract original scale features and predictions from DataFrame
@@ -304,7 +305,8 @@ async def predict_from_file(
 async def predict_from_values(
     model_components: Dict[str, Any],
     feature_values: Union[List[float], List[List[float]]],
-    generate_experiment_report: bool = False
+    generate_experiment_report: bool = False,
+    user_id: str = "default"
 ) -> Tuple[Dict[str, Any], Optional[str], str]:
     """Make predictions from feature values with optional experiment reporting.
     
@@ -332,7 +334,7 @@ async def predict_from_values(
         # Batch prediction - validate all samples
         num_samples = len(feature_values)
         for i, sample in enumerate(feature_values):
-            if len(sample) != expected_features:
+            if len(sample) != expected_features: # type: ignore
                 raise ValueError(f"Sample {i}: Expected {expected_features} features, got {len(sample)}")
         
         # Convert to numpy array for processing
@@ -367,9 +369,10 @@ async def predict_from_values(
     
     # Apply inverse transformation for final results
     result_df = await inverse_transform_predictions(
-        predictions, preprocessed_data, full_scaler, metadata['target_names']
+        predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
     )
-    
+
+    print("result_df:", result_df)
     # Format results
     target_names = metadata['target_names']
     
@@ -382,19 +385,21 @@ async def predict_from_values(
             
             if metadata['target_number'] == 1:
                 # Single target
-                prediction_value = float(predictions[i])
+                prediction_value = float(predictions[i]) # type: ignore
                 sample_result = {
                     'input_features': dict(zip(feature_names, sample_features)),
-                    'prediction': {target_names[0]: prediction_value},
-                    'processed_input': dict(zip(feature_names, sample_preprocessed.tolist()))
+                    'prediction': {target_names[0]: result_df["prediction_" + target_names[0]].iloc[i].tolist()},
+                    'processed_input': dict(zip(feature_names, sample_preprocessed.tolist())),
+                    'processed_prediction':{target_names[0]: prediction_value},
                 }
             else:
                 # Multiple targets
-                prediction_values = predictions[i].tolist()
+                prediction_values = predictions[i].tolist() # type: ignore
                 sample_result = {
                     'input_features': dict(zip(feature_names, sample_features)),
-                    'predictions': dict(zip(target_names, prediction_values)),
-                    'processed_input': dict(zip(feature_names, sample_preprocessed.tolist()))
+                    'predictions': dict(zip(target_names, result_df["prediction_" + target_names].iloc[i].tolist())),
+                    'processed_input': dict(zip(feature_names, sample_preprocessed.tolist())),
+                    'processed_prediction': dict(zip(target_names, prediction_values)),
                 }
             batch_results.append(sample_result)
         
@@ -410,8 +415,9 @@ async def predict_from_values(
             prediction_value = float(predictions[0])
             results = {
                 'input_features': dict(zip(feature_names, feature_values)),
-                'prediction': {target_names[0]: prediction_value},
+                'prediction': {target_names[0]: result_df["prediction_" + target_names[0]].iloc[0].tolist()},
                 'processed_input': dict(zip(feature_names, preprocessed_data[0].tolist())),
+                'processed_prediction': {target_names[0]: prediction_value},
                 'prediction_type': 'single'
             }
         else:
@@ -419,14 +425,15 @@ async def predict_from_values(
             prediction_values = predictions[0].tolist()
             results = {
                 'input_features': dict(zip(feature_names, feature_values)),
-                'predictions': dict(zip(target_names, prediction_values)),
+                'predictions': dict(zip(target_names, result_df["prediction_" + target_names].iloc[0].tolist())),
                 'processed_input': dict(zip(feature_names, preprocessed_data[0].tolist())),
+                'processed_prediction': dict(zip(target_names, prediction_values)),
                 'prediction_type': 'single'
             }
     
     # Always save basic prediction results to model folder (even without experiment report)
     model_id = metadata['model_id']
-    model_base_path = os.path.join("trained_model", model_id)
+    model_base_path = os.path.join("trained_models", user_id, model_id)
     predictions_dir = os.path.join(model_base_path, "predictions")
     os.makedirs(predictions_dir, exist_ok=True)
     print(predictions_dir)
@@ -436,7 +443,7 @@ async def predict_from_values(
     
     # Get original scale data for basic saving
     original_scale_df = await inverse_transform_predictions(
-        predictions, preprocessed_data, full_scaler, metadata['target_names']
+        predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
     )
     original_features = original_scale_df.iloc[:, :expected_features].values
     original_predictions = original_scale_df.iloc[:, expected_features:].values
@@ -477,7 +484,7 @@ async def predict_from_values(
         
         # Apply inverse transformation to get original scale features and predictions
         original_scale_df = await inverse_transform_predictions(
-            ensemble_predictions, preprocessed_data, full_scaler, metadata['target_names']
+            ensemble_predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
         )
         
         # Extract original scale features and predictions from DataFrame
@@ -650,7 +657,7 @@ async def batch_predict_from_values(
     # Apply inverse transformation
     full_scaler = model_components['full_scaler']
     result_df = await inverse_transform_predictions(
-        scaled_predictions, preprocessed_data, full_scaler, metadata['target_names']
+        scaled_predictions, preprocessed_data, full_scaler, metadata['target_names'], metadata['feature_names'] # type: ignore
     )
     
     # Extract prediction columns
@@ -661,7 +668,7 @@ async def batch_predict_from_values(
         # For multi-target, get all prediction columns
         original_predictions = result_df.iloc[:, -target_number:].values
     
-    return scaled_predictions, original_predictions
+    return scaled_predictions, original_predictions # type: ignore
 
 
 async def get_prediction_statistics(
@@ -699,7 +706,7 @@ async def get_prediction_statistics(
         std = np.std(individual_preds, axis=0)
         # Handle both scalar and array cases for std
         if np.isscalar(std) or std.size == 1:
-            std_value = float(std)
+            std_value = float(std) # type: ignore
         else:
             # If somehow we get an array, take the first element
             std_value = float(std.flatten()[0])
@@ -708,7 +715,7 @@ async def get_prediction_statistics(
         if hasattr(ensemble_pred, 'size') and ensemble_pred.size == 1:
             ensemble_value = float(ensemble_pred)
         elif np.isscalar(ensemble_pred):
-            ensemble_value = float(ensemble_pred)
+            ensemble_value = float(ensemble_pred) # type: ignore
         else:
             ensemble_value = float(ensemble_pred.flatten()[0])
             
@@ -741,7 +748,7 @@ async def get_prediction_statistics(
 async def predict_and_save(
     model_components: Dict[str, Any],
     prediction_file: str,
-    output_file: str = None
+    output_file: str = None # type: ignore
 ) -> str:
     """Make predictions and save results to file.
     
@@ -754,7 +761,7 @@ async def predict_and_save(
         Path to saved results file
     """
     # Make predictions
-    result_df, _ = await predict_from_file(model_components, prediction_file)
+    result_df, _ = await predict_from_file(model_components, prediction_file) # type: ignore
     
     # Determine output file path
     if output_file is None:
@@ -770,7 +777,7 @@ async def predict_and_save(
 def create_prediction_summary(
     model_components: Dict[str, Any],
     predictions: np.ndarray,
-    input_features: np.ndarray = None
+    input_features: np.ndarray = None #type: ignore
 ) -> Dict[str, Any]:
     """Create a summary of predictions.
     
@@ -1159,7 +1166,7 @@ def classify_from_values(
                 'predicted_class': original_class_name,
                 'predicted_class_name': original_class_name,  # For backward compatibility
                 'probabilities': prob_dict,
-                'confidence': float(np.max(probabilities) if not np.isscalar(probabilities) else probabilities),
+                'confidence': float(np.max(probabilities) if not np.isscalar(probabilities) else probabilities), # type: ignore
                 'feature_values': feature_values,
                 'model_folder': model_folder,
                 'num_models_used': len(models)

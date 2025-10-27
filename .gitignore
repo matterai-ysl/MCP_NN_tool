@@ -10,6 +10,8 @@ Thumbs.db
 .temp/
 .tmp/
 .trained_models/
+reports/
+trained_model/
 # 操作系统相关
 .DS_Store
 .DS_Store?
