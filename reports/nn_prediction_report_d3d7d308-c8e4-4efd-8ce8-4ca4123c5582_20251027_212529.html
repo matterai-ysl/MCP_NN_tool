@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Network Prediction Report - d3d7d308-c8e4-4efd-8ce8-4ca4123c5582</title>
+    
+    <style>
+        /* Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        /* Header Styles */
+        .report-header {
+            text-align: center;
+            padding: 30px 0;
+            background: linear-gradient(135deg, #2E7D32 0%, #388E3C 100%);
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .report-header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+        
+        .header-meta {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .task-type {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .task-type.regression {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+        }
+        
+        .task-type.classification {
+            background: rgba(156, 39, 176, 0.2);
+            border: 1px solid #9C27B0;
+        }
+        
+        .model-id {
+            padding: 5px 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
+        /* Section Styles */
+        .report-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #388E3C;
+        }
+        
+        .section-title {
+            font-size: 1.5em;
+            color: #2E7D32;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #388E3C;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        /* Table Styles */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .data-table th {
+            background: #388E3C;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .data-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        /* Visualization Styles */
+        .visualization-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .visualization-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .visualization-caption {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        /* Architecture Display */
+        .architecture-diagram {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .layer-info {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .layer-info:last-child {
+            border-bottom: none;
+        }
+        
+        /* Recommendations */
+        .recommendation-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #FF9800;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .recommendation-title {
+            font-weight: bold;
+            color: #FF9800;
+            margin-bottom: 5px;
+        }
+        
+        /* Footer */
+        .report-footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            border-top: 1px solid #eee;
+            margin-top: 40px;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 15px;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-meta {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="report-header">
+            <h1>🔮 Neural Network Prediction Report</h1>
+            <p class="subtitle">Comprehensive Analysis of Model Predictions</p>
+            <div class="header-meta">
+                <span class="task-type regression">Regression</span>
+                <span class="model-id">Model ID: d3d7d308-c8e4-4efd-8ce8-4ca4123c5582</span>
+            </div>
+        </header>
+        
+        
+        <div class="report-section">
+            <h2 class="section-title">📊 Prediction Summary</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">0</div>
+                    <div class="metric-label">Total Predictions</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">Regression</div>
+                    <div class="metric-label">Task Type</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">🏗️ Model Information</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">4</div>
+                    <div class="metric-label">Input Features</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">1</div>
+                    <div class="metric-label">Output Targets</div>
+                </div>
+            </div>
+        </div>
+        
+            <div class="report-section">
+                <h2 class="section-title">📈 Prediction Statistics</h2>
+                <p>No prediction statistics available.</p>
+            </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">📊 Prediction Distribution</h2>
+            <p>Prediction distribution visualization would be displayed here.</p>
+        </div>
+        
+            <div class="report-section">
+                <h2 class="section-title">📋 Prediction Details</h2>
+                <p>No prediction details available.</p>
+            </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">💡 Recommendations</h2>
+            <div class="recommendation-item">
+                <div class="recommendation-title">Prediction Completed Successfully</div>
+                <p>The model has generated predictions for all input samples. Review the prediction statistics and details above.</p>
+            </div>
+        </div>
+        
+        <footer class="report-footer">
+            <p>Report generated on 2025-10-27 at 21:25:29</p>
+            <p>MCP Neural Network Tool - Prediction Analysis Report v1.0.0</p>
+        </footer>
+    </div>
+</body>
+</html>
