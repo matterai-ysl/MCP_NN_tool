@@ -23,6 +23,54 @@ import re
 from fastmcp import FastMCP, Context
 import time
 
+
+def serialize_for_json(obj) -> Any:
+    """
+    Convert numpy arrays and other non-serializable objects to JSON-serializable formats.
+
+    Handles:
+    - numpy arrays -> lists
+    - numpy integers -> int
+    - numpy floats -> float
+    - numpy bools -> bool
+    - nested dicts, lists, tuples, sets
+    - datetime objects -> isoformat string
+    - None -> None
+    - Other objects -> string representation
+
+    Args:
+        obj: Object to serialize
+
+    Returns:
+        JSON-serializable version of the object
+    """
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, dict):
+        return {key: serialize_for_json(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_for_json(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return [serialize_for_json(item) for item in obj]
+    elif isinstance(obj, set):
+        return [serialize_for_json(item) for item in obj]
+    elif hasattr(obj, 'isoformat'):  # datetime objects
+        return obj.isoformat()
+    elif obj is None:
+        return None
+    else:
+        # For other objects, try to convert to string as fallback
+        try:
+            return str(obj)
+        except:
+            return None
+
 from mcp_nn_tool.data_utils import (
     preprocess_data, 
     read_data_file, 
@@ -384,21 +432,21 @@ async def train_neural_network_regression(
             estimated_duration=estimated_duration
         )
         
-        return {
+        return serialize_for_json({
             "status": "submitted",
             "model_id": model_id,
             "message": "Training task submitted to queue",
             "estimated_duration": estimated_duration,
             "parameters": task_parameters,
             "next_steps": "Use get_training_results(model_id) to check progress and get results when complete"
-        }
-        
+        })
+
     except Exception as e:
         logger.error(f"Error submitting training task: {str(e)}")
-        return {
+        return serialize_for_json({
             "status": "error",
             "message": f"Failed to submit training task: {str(e)}"
-        }
+        })
 
 
 @mcp.tool()
@@ -513,13 +561,13 @@ async def predict_from_file_neural_network(
         if experiment_report_path:
             experiment_report_realve_path = get_download_url(experiment_report_path) # type: ignore
             response['experiment_report_path'] = experiment_report_realve_path
-        
+
         logger.info(f"Prediction completed for {task_type} model {model_id}")
-        return response
-        
+        return serialize_for_json(response)
+
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")
-        return {'error': f"Prediction failed: {str(e)}"}
+        return serialize_for_json({'error': f"Prediction failed: {str(e)}"})
 
 
 @mcp.tool()
@@ -628,13 +676,13 @@ async def predict_from_values_neural_network(
         if experiment_report_path:
             experiment_report_realve_path = get_download_url(experiment_report_path) # type: ignore
             response['experiment_report_path'] = experiment_report_realve_path
-        
+
         logger.info(f"Prediction completed for {task_type} model {model_id}")
-        return response
-        
+        return serialize_for_json(response)
+
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")
-        return {'error': f"Prediction failed: {str(e)}"}
+        return serialize_for_json({'error': f"Prediction failed: {str(e)}"})
 
 
 @mcp.tool()
@@ -662,9 +710,9 @@ async def list_neural_network_models(ctx: Context = None) -> Dict[str, Any]: # t
             "total_models": len(models),
             "models_directory": user_models_dir
         }
-        
-        return result
-        
+
+        return serialize_for_json(result)
+
     except Exception as e:
         logger.error(f"Error listing models: {str(e)}")
         raise
@@ -709,9 +757,9 @@ async def get_neural_network_model_info(model_id: str, ctx: Context = None) -> D
             "model_info": metadata,
             "folder_contents": folder_contents
         }
-        
-        return result
-        
+
+        return serialize_for_json(result)
+
     except Exception as e:
         logger.error(f"Error getting model info: {str(e)}")
         raise
@@ -744,9 +792,9 @@ async def delete_neural_network_model(model_id: str, ctx: Context = None) -> Dic
             "deleted": success,
             "folder_path": folder_path
         }
-        
-        return result
-        
+
+        return serialize_for_json(result)
+
     except Exception as e:
         logger.error(f"Error deleting model: {str(e)}")
         raise
@@ -1040,21 +1088,21 @@ async def train_classification_model_neural_network(
             estimated_duration=estimated_duration
         )
         
-        return {
+        return serialize_for_json({
             "status": "submitted",
             "model_id": model_id,
             "message": "Classification training task submitted to queue",
             "estimated_duration": estimated_duration,
             "parameters": task_parameters,
             "next_steps": "Use get_training_results(model_id) to check progress and get results when complete"
-        }
-        
+        })
+
     except Exception as e:
         logger.error(f"Error submitting classification training task: {str(e)}")
-        return {
+        return serialize_for_json({
             "status": "error",
             "message": f"Failed to submit classification training task: {str(e)}"
-        }
+        })
 
 
 # @mcp.tool()
@@ -1161,11 +1209,11 @@ async def get_training_results(model_id: str, ctx: Context = None) -> Dict[str, 
         task_info = task_queue.get_task_status(model_id)
         
         if not task_info:
-            return {
+            return serialize_for_json({
                 "status": "error",
                 "message": f"Task {model_id} not found"
-            }
-        
+            })
+
         result = {
             "model_id": model_id,
             "task_type": task_info.task_type.value,
@@ -1177,29 +1225,29 @@ async def get_training_results(model_id: str, ctx: Context = None) -> Dict[str, 
             "completed_at": task_info.completed_at.isoformat() if task_info.completed_at else None,
             "parameters": task_info.parameters or {},
         }
-        
+
         # Add duration information
         if task_info.estimated_duration:
             result["estimated_duration"] = task_info.estimated_duration
         if task_info.actual_duration:
             result["actual_duration"] = task_info.actual_duration
-        
+
         # Add results if completed successfully
         if task_info.status == TaskStatus.COMPLETED and task_info.result:
             result["training_results"] = task_info.result
-            
+
         # Add error information if failed
         if task_info.status == TaskStatus.FAILED and task_info.error_message:
             result["error_message"] = task_info.error_message
-            
-        return result
-        
+
+        return serialize_for_json(result)
+
     except Exception as e:
         logger.error(f"Error getting training results: {str(e)}")
-        return {
-            "status": "error", 
+        return serialize_for_json({
+            "status": "error",
             "message": f"Failed to get training results: {str(e)}"
-        }
+        })
 
 
 @mcp.tool()
@@ -1231,20 +1279,20 @@ async def list_training_tasks(
             try:
                 status_enum = TaskStatus(status_filter.lower())
             except ValueError:
-                return {
+                return serialize_for_json({
                     "status": "error",
                     "message": f"Invalid status filter: {status_filter}. Valid values: {[s.value for s in TaskStatus]}"
-                }
-        
+                })
+
         task_type_enum = None
         if task_type_filter:
             try:
                 task_type_enum = TaskType(task_type_filter.lower())
             except ValueError:
-                return {
-                    "status": "error", 
+                return serialize_for_json({
+                    "status": "error",
                     "message": f"Invalid task type filter: {task_type_filter}. Valid values: {[t.value for t in TaskType]}"
-                }
+                })
         
         # Get filtered tasks
         tasks = task_queue.list_tasks(
@@ -1280,7 +1328,7 @@ async def list_training_tasks(
                 
             task_list.append(task_dict)
         
-        return {
+        return serialize_for_json({
             "status": "success",
             "tasks": task_list,
             "total_returned": len(task_list),
@@ -1289,14 +1337,14 @@ async def list_training_tasks(
                 "task_type": task_type_filter,
                 "limit": limit
             }
-        }
-        
+        })
+
     except Exception as e:
         logger.error(f"Error listing training tasks: {str(e)}")
-        return {
+        return serialize_for_json({
             "status": "error",
             "message": f"Failed to list training tasks: {str(e)}"
-        }
+        })
 
 
 @mcp.tool()
@@ -1322,15 +1370,15 @@ async def get_nn_queue_status(ctx: Context = None) -> Dict[str, Any]: # type: ig
                 "persistence_file_exists": task_queue.persistence_file.exists()
             }
         }
-        
-        return result
-        
+
+        return serialize_for_json(result)
+
     except Exception as e:
         logger.error(f"Error getting queue status: {str(e)}")
-        return {
+        return serialize_for_json({
             "status": "error",
             "message": f"Failed to get queue status: {str(e)}"
-        }
+        })
 
 
 @mcp.tool()
@@ -1355,35 +1403,35 @@ async def cancel_nn_training_task(model_id: str, ctx: Context = None) -> Dict[st
         # Check if task exists
         task_info = task_queue.get_task_status(model_id)
         if not task_info:
-            return {
+            return serialize_for_json({
                 "status": "error",
                 "message": f"Task {model_id} not found"
-            }
-        
+            })
+
         # Attempt to cancel the task
         cancelled = await task_queue.cancel_task(model_id)
-        
+
         if cancelled:
-            return {
+            return serialize_for_json({
                 "status": "success",
                 "model_id": model_id,
                 "message": "Task cancelled successfully",
                 "previous_status": task_info.status.value
-            }
+            })
         else:
-            return {
+            return serialize_for_json({
                 "status": "error",
                 "model_id": model_id,
                 "message": f"Cannot cancel task with status: {task_info.status.value}",
                 "current_status": task_info.status.value
-            }
-        
+            })
+
     except Exception as e:
         logger.error(f"Error cancelling task: {str(e)}")
-        return {
+        return serialize_for_json({
             "status": "error",
             "message": f"Failed to cancel task: {str(e)}"
-        }
+        })
 
 
 # @mcp.tool()
