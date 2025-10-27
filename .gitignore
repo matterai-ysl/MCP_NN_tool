@@ -109,3 +109,8 @@ docker-compose.override.yml
 # 例如：上传的用户文件、临时上传目录等
 uploads/
 media/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
